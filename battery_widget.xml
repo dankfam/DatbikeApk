@@ -1,0 +1,9 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="14dp" android:background="#111827">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="DATBIKE QUANTUM S3 • START BATTERY" android:textColor="#94A3B8" android:textSize="11sp" android:textStyle="bold"/>
+    <TextView android:id="@+id/widget_soc" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Open app to sync" android:textColor="#34D399" android:textSize="30sp" android:textStyle="bold" android:paddingTop="4dp"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="6dp">
+      <TextView android:id="@+id/widget_kwh" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="— kWh" android:textColor="#F8FAFC" android:textSize="14sp"/>
+      <TextView android:id="@+id/widget_range" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="— km" android:textColor="#F8FAFC" android:textSize="14sp"/>
+    </LinearLayout>
+    <TextView android:id="@+id/widget_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Ride start battery • estimated range" android:textColor="#94A3B8" android:textSize="10sp" android:paddingTop="7dp"/>
+</LinearLayout>

@@ -1,0 +1,3641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>DatBike Quantum S3 — Battery & Charging Simulator</title>
+  <style>
+    /* ==========================================================================
+       CSS VARIABLES & THEME TOKENS (Adaptive Dark / Light EV Dashboard)
+       ========================================================================== */
+    :root {
+      --bg-app: #0b1120;
+      --bg-surface: #111827;
+      --bg-card: #1e293b;
+      --bg-card-elevated: #263348;
+      --bg-input: #0f172a;
+      --border-subtle: rgba(148, 163, 184, 0.16);
+      --border-focus: #06b6d4;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+
+      --accent-cyan: #06b6d4;
+      --accent-cyan-soft: rgba(6, 182, 212, 0.14);
+      --accent-emerald: #10b981;
+      --accent-emerald-soft: rgba(16, 185, 129, 0.14);
+      --accent-amber: #f59e0b;
+      --accent-amber-soft: rgba(245, 158, 11, 0.15);
+      --accent-rose: #f43f5e;
+      --accent-rose-soft: rgba(244, 63, 94, 0.15);
+
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) {
+        --bg-app: #f1f5f9;
+        --bg-surface: #ffffff;
+        --bg-card: #ffffff;
+        --bg-card-elevated: #f8fafc;
+        --bg-input: #f1f5f9;
+        --border-subtle: rgba(15, 23, 42, 0.12);
+        --border-focus: #0284c7;
+        --text-primary: #0f172a;
+        --text-secondary: #475569;
+        --text-muted: #64748b;
+
+        --accent-cyan: #0284c7;
+        --accent-cyan-soft: rgba(2, 132, 199, 0.1);
+        --accent-emerald: #059669;
+        --accent-emerald-soft: rgba(5, 150, 105, 0.1);
+        --accent-amber: #d97706;
+        --accent-amber-soft: rgba(217, 119, 6, 0.12);
+        --accent-rose: #e11d48;
+        --accent-rose-soft: rgba(225, 29, 72, 0.12);
+
+        --shadow-sm: 0 1px 4px rgba(15, 23, 42, 0.06);
+        --shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08);
+      }
+    }
+
+    :root[data-theme="light"] {
+      --bg-app: #f1f5f9;
+      --bg-surface: #ffffff;
+      --bg-card: #ffffff;
+      --bg-card-elevated: #f8fafc;
+      --bg-input: #f1f5f9;
+      --border-subtle: rgba(15, 23, 42, 0.12);
+      --border-focus: #0284c7;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+
+      --accent-cyan: #0284c7;
+      --accent-cyan-soft: rgba(2, 132, 199, 0.1);
+      --accent-emerald: #059669;
+      --accent-emerald-soft: rgba(5, 150, 105, 0.1);
+      --accent-amber: #d97706;
+      --accent-amber-soft: rgba(217, 119, 6, 0.12);
+      --accent-rose: #e11d48;
+      --accent-rose-soft: rgba(225, 29, 72, 0.12);
+
+      --shadow-sm: 0 1px 4px rgba(15, 23, 42, 0.06);
+      --shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08);
+    }
+
+    /* ==========================================================================
+       RESET & BASE STYLES
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-family: var(--font-sans);
+      background-color: var(--bg-app);
+      color: var(--text-primary);
+      line-height: 1.5;
+      -webkit-tap-highlight-color: transparent;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    .tabular {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ==========================================================================
+       HEADER & TOP NAVIGATION
+       ========================================================================== */
+    .app-header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+    }
+
+    .header-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0.85rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      min-width: 0;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+    }
+
+    .brand-text h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      min-height: 40px;
+      min-width: 40px;
+      padding: 0.45rem 0.75rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-card-elevated);
+      color: var(--text-primary);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      transition: all 0.15s ease;
+    }
+
+    .icon-btn:hover {
+      border-color: var(--accent-cyan);
+    }
+
+    .icon-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* Dedicated Bottom Action Bar (Normal Document Flow - Zero Overlap) */
+    .storage-action-bar {
+      margin-top: 1.5rem;
+      padding: 1rem 1.15rem;
+      border-radius: var(--radius-lg);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.85rem;
+      flex-wrap: wrap;
+    }
+
+    .storage-action-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      min-width: 180px;
+    }
+
+    .storage-action-info strong {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .storage-action-info span {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    .storage-action-buttons {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      flex: 1 1 auto;
+      justify-content: flex-end;
+    }
+
+    @media (max-width: 540px) {
+      .storage-action-buttons {
+        width: 100%;
+        justify-content: stretch;
+      }
+      .storage-action-buttons button {
+        flex: 1 1 0;
+        justify-content: center;
+      }
+    }
+
+    .btn-save-solid {
+      min-height: 44px;
+      padding: 0.55rem 1.1rem;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: linear-gradient(135deg, var(--accent-emerald), #059669);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.86rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.25);
+      transition: transform 0.12s ease, filter 0.15s ease;
+    }
+
+    .btn-save-solid:hover {
+      filter: brightness(1.07);
+    }
+
+    .btn-save-solid:active {
+      transform: scale(0.98);
+    }
+
+    .btn-reset-outline {
+      min-height: 44px;
+      padding: 0.55rem 1rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-card-elevated);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      transition: all 0.15s ease;
+    }
+
+    .btn-reset-outline:hover {
+      border-color: var(--accent-rose);
+      color: var(--accent-rose);
+    }
+
+    .btn-reset-outline:active {
+      transform: scale(0.98);
+    }
+
+    /* Toast Notification for Save / Reset Feedback */
+    .save-toast {
+      position: fixed;
+      bottom: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(24px);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--accent-emerald);
+      box-shadow: var(--shadow-md);
+      padding: 0.65rem 1.1rem;
+      border-radius: 999px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      max-width: calc(100vw - 2rem);
+      text-align: center;
+    }
+
+    .save-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .save-toast.warn {
+      border-color: var(--accent-amber);
+    }
+
+    /* Navigation Tabs */
+    .nav-bar {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 1rem 0.85rem;
+    }
+
+    .nav-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      background: var(--bg-input);
+      padding: 0.35rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .nav-tab {
+      min-height: 46px;
+      border: none;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+
+    .nav-tab:hover {
+      color: var(--text-primary);
+    }
+
+    .nav-tab.active {
+      background: var(--bg-card);
+      color: var(--accent-cyan);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* ==========================================================================
+       MAIN CONTAINER & COLLAPSIBLE BASELINE SPECS
+       ========================================================================== */
+    .main-container {
+      width: 100%;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1rem 1rem 3rem;
+      flex: 1;
+    }
+
+    .specs-drawer {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .specs-summary {
+      list-style: none;
+      padding: 0.85rem 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      user-select: none;
+    }
+
+    .specs-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .specs-summary-left {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      background: var(--accent-cyan-soft);
+      color: var(--accent-cyan);
+    }
+
+    .badge-pill.emerald {
+      background: var(--accent-emerald-soft);
+      color: var(--accent-emerald);
+    }
+
+    .badge-pill.amber {
+      background: var(--accent-amber-soft);
+      color: var(--accent-amber);
+    }
+
+    .badge-pill.rose {
+      background: var(--accent-rose-soft);
+      color: var(--accent-rose);
+    }
+
+    .specs-body {
+      padding: 0.9rem 1rem 1.1rem;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-card-elevated);
+    }
+
+    .specs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .spec-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.65rem 0.75rem;
+    }
+
+    .spec-item .label {
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .spec-item .val {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-top: 0.15rem;
+    }
+
+    .spec-item .sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    /* ==========================================================================
+       PAGE VISIBILITY & CARDS
+       ========================================================================== */
+    .page-view {
+      display: none;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .page-view.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+      box-shadow: var(--shadow-md);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 1.1rem;
+      flex-wrap: wrap;
+    }
+
+    .card-title-group h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card-title-group p {
+      font-size: 0.83rem;
+      color: var(--text-secondary);
+      margin-top: 0.2rem;
+    }
+
+    .btn-secondary {
+      min-height: 38px;
+      padding: 0.45rem 0.85rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-card-elevated);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.15s ease;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    .btn-primary {
+      min-height: 44px;
+      padding: 0.6rem 1rem;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: linear-gradient(135deg, var(--accent-cyan), #0891b2);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.25);
+      transition: transform 0.12s ease, filter 0.15s ease;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.07);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    /* ==========================================================================
+       FORM CONTROLS & SLIDERS
+       ========================================================================== */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .form-label {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .inline-link-btn {
+      background: none;
+      border: none;
+      color: var(--accent-cyan);
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0.15rem 0.3rem;
+      border-radius: 4px;
+    }
+
+    .inline-link-btn:hover {
+      background: var(--accent-cyan-soft);
+    }
+
+    .control-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.8rem 0.9rem;
+      transition: border-color 0.15s ease;
+    }
+
+    .slider-input-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    input[type="range"].battery-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1 1 auto;
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--bg-card-elevated);
+      border: 1px solid var(--border-subtle);
+      outline: none;
+      cursor: pointer;
+      touch-action: pan-y;
+    }
+
+    input[type="range"].battery-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
+      border: 3px solid var(--bg-card);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+      cursor: pointer;
+      transition: transform 0.12s ease;
+    }
+
+    input[type="range"].battery-slider::-webkit-slider-thumb:active {
+      transform: scale(1.12);
+    }
+
+    input[type="range"].battery-slider::-moz-range-thumb {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
+      border: 3px solid var(--bg-card);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+      cursor: pointer;
+      transition: transform 0.12s ease;
+    }
+
+    .compact-num-wrap {
+      flex: 0 0 88px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      background: var(--bg-card-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0 0.5rem;
+      min-height: 44px;
+    }
+
+    .compact-num-wrap input[type="number"] {
+      text-align: right;
+      font-size: 1.08rem;
+      font-weight: 800;
+    }
+
+    .number-unit-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.15rem 0.75rem;
+      min-height: 46px;
+      transition: border-color 0.15s ease;
+    }
+
+    .number-unit-wrap:focus-within,
+    .control-box:focus-within,
+    .compact-num-wrap:focus-within {
+      border-color: var(--border-focus);
+    }
+
+    input[type="number"],
+    input[type="datetime-local"] {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 1.05rem;
+      font-weight: 700;
+      outline: none;
+      min-height: 36px;
+    }
+
+    input[type="datetime-local"] {
+      font-size: 0.95rem;
+      color-scheme: dark;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) input[type="datetime-local"] {
+        color-scheme: light;
+      }
+    }
+    :root[data-theme="light"] input[type="datetime-local"] {
+      color-scheme: light;
+    }
+
+    .unit-tag {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    /* Preset Pills */
+    .preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.15rem;
+    }
+
+    .preset-btn {
+      min-height: 40px;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-card-elevated);
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: all 0.15s ease;
+    }
+
+    .preset-btn:hover {
+      border-color: var(--accent-cyan);
+      color: var(--text-primary);
+    }
+
+    .preset-btn.active {
+      background: var(--accent-cyan-soft);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    /* ==========================================================================
+       BATTERY VISUAL GAUGE & KPI METRIC CARDS
+       ========================================================================== */
+    .battery-gauge-box {
+      margin-top: 1.25rem;
+      padding: 1rem;
+      border-radius: var(--radius-md);
+      background: var(--bg-card-elevated);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .gauge-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.55rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .battery-track {
+      height: 22px;
+      background: var(--bg-input);
+      border-radius: 999px;
+      padding: 3px;
+      border: 1px solid var(--border-subtle);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .battery-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.25s ease;
+      background: var(--accent-emerald);
+    }
+
+    .battery-fill.amber {
+      background: var(--accent-amber);
+    }
+
+    .battery-fill.rose {
+      background: var(--accent-rose);
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.85rem;
+      margin-top: 1rem;
+    }
+
+    @media (min-width: 640px) {
+      .kpi-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .kpi-card {
+      background: var(--bg-card-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .kpi-label {
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 0.35rem;
+    }
+
+    .kpi-value {
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .kpi-value.cyan { color: var(--accent-cyan); }
+    .kpi-value.emerald { color: var(--accent-emerald); }
+    .kpi-value.amber { color: var(--accent-amber); }
+    .kpi-value.rose { color: var(--accent-rose); }
+
+    .kpi-sub {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    /* Alert Banner */
+    .alert-banner {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      border-radius: var(--radius-md);
+      font-size: 0.85rem;
+      font-weight: 500;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      line-height: 1.45;
+    }
+
+    .alert-banner.rose {
+      background: var(--accent-rose-soft);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      color: var(--text-primary);
+    }
+
+    .alert-banner.emerald {
+      background: var(--accent-emerald-soft);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: var(--text-primary);
+    }
+
+    .alert-banner.amber {
+      background: var(--accent-amber-soft);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: var(--text-primary);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* ==========================================================================
+       TRIP CHARGING ITINERARY TIMELINE
+       ========================================================================== */
+    .itinerary-wrapper {
+      margin-top: 1.25rem;
+    }
+
+    .itinerary-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.85rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .itinerary-header h3 {
+      font-size: 0.98rem;
+      font-weight: 700;
+    }
+
+    .timeline {
+      position: relative;
+      padding-left: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 7px;
+      top: 10px;
+      bottom: 10px;
+      width: 2px;
+      background: var(--border-subtle);
+    }
+
+    .timeline-step {
+      position: relative;
+      background: var(--bg-card-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 1rem;
+    }
+
+    .timeline-dot {
+      position: absolute;
+      left: -1.5rem;
+      top: 1.1rem;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      border: 3px solid var(--bg-card);
+      box-shadow: 0 0 0 1px var(--accent-cyan);
+    }
+
+    .timeline-dot.charge {
+      background: var(--accent-amber);
+      box-shadow: 0 0 0 1px var(--accent-amber);
+    }
+
+    .timeline-dot.finish {
+      background: var(--accent-emerald);
+      box-shadow: 0 0 0 1px var(--accent-emerald);
+    }
+
+    .step-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.45rem;
+    }
+
+    .step-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .step-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 0.8rem;
+    }
+
+    .step-meta-item span {
+      display: block;
+      font-size: 0.71rem;
+      color: var(--text-muted);
+    }
+
+    .step-meta-item strong {
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    /* ==========================================================================
+       PAGE 2: CHARGING CALCULATOR HIGHLIGHT BOX
+       ========================================================================== */
+    .finish-hero {
+      margin-top: 1.25rem;
+      padding: 1.25rem;
+      border-radius: var(--radius-lg);
+      background: linear-gradient(135deg, var(--accent-cyan-soft), var(--accent-emerald-soft));
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .finish-hero-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent-cyan);
+    }
+
+    .finish-hero-time {
+      font-size: 1.65rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .finish-hero-sub {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .charge-bar-container {
+      margin-top: 0.75rem;
+    }
+
+    .charge-bar-track {
+      height: 16px;
+      background: var(--bg-input);
+      border-radius: 999px;
+      overflow: hidden;
+      display: flex;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .charge-bar-existing {
+      height: 100%;
+      background: var(--accent-emerald);
+      transition: width 0.25s ease;
+    }
+
+    .charge-bar-added {
+      height: 100%;
+      background: repeating-linear-gradient(
+        45deg,
+        var(--accent-cyan),
+        var(--accent-cyan) 8px,
+        rgba(6, 182, 212, 0.65) 8px,
+        rgba(6, 182, 212, 0.65) 16px
+      );
+      transition: width 0.25s ease;
+    }
+
+    .charge-legend {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 0.4rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .datetime-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: stretch;
+      flex-wrap: wrap;
+    }
+
+    .datetime-row .number-unit-wrap {
+      flex: 1 1 210px;
+    }
+
+    .datetime-row .btn-primary {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    /* Live Real-Time Charging Tracker Card */
+    .live-tracker-card {
+      margin-top: 1.25rem;
+      padding: 1.15rem;
+      border-radius: var(--radius-lg);
+      background: var(--bg-card-elevated);
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .live-tracker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.95rem;
+    }
+
+    .live-tracker-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .live-pulse-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+      animation: livePulse 1.8s infinite;
+      flex-shrink: 0;
+    }
+
+    .live-pulse-dot.amber {
+      background: var(--accent-amber);
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
+    }
+
+    .live-pulse-dot.static {
+      animation: none;
+      background: var(--accent-cyan);
+    }
+
+    @keyframes livePulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65); }
+      70% { transform: scale(1); box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .live-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 0.85rem;
+      margin-bottom: 0.95rem;
+    }
+
+    .live-metric-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 1rem;
+    }
+
+    .live-metric-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+    }
+
+    .live-metric-big {
+      font-family: var(--font-mono);
+      font-size: 1.65rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0.25rem 0 0.2rem;
+      color: var(--text-primary);
+    }
+
+    .live-metric-big.emerald { color: var(--accent-emerald); }
+    .live-metric-big.cyan { color: var(--accent-cyan); }
+    .live-metric-big.amber { color: var(--accent-amber); }
+
+    .live-metric-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .live-bar-track {
+      height: 18px;
+      background: var(--bg-input);
+      border-radius: 999px;
+      overflow: hidden;
+      display: flex;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .live-bar-start {
+      height: 100%;
+      background: var(--accent-cyan);
+      transition: width 0.3s ease;
+    }
+
+    .live-bar-gained {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-emerald), #34d399);
+      transition: width 0.3s ease;
+    }
+
+    .live-bar-remaining {
+      height: 100%;
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(148, 163, 184, 0.14),
+        rgba(148, 163, 184, 0.14) 8px,
+        transparent 8px,
+        transparent 16px
+      );
+      transition: width 0.3s ease;
+    }
+
+    .live-tracker-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.85rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    .app-footer {
+      text-align: center;
+      padding: 1.25rem 1rem;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+    }
+  </style>
+</head>
+<body>
+  <!-- ========================================================================
+       STICKY HEADER & TWO-PAGE NAVIGATION TABS
+       ======================================================================== -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>DatBike Quantum S3</h1>
+          <p>Battery, Range &amp; Charging Simulator</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button type="button" id="theme-toggle-btn" class="icon-btn" aria-label="Toggle color theme" title="Switch Light / Dark Theme">
+          <span id="theme-toggle-icon">🌓</span>
+          <span id="theme-toggle-label">Theme</span>
+        </button>
+      </div>
+    </div>
+
+    <nav class="nav-bar" aria-label="Main Simulator Pages">
+      <div class="nav-tabs" role="tablist">
+        <button type="button" role="tab" id="tab-btn-ride" data-tab="ride" class="nav-tab active" aria-selected="true" aria-controls="page-ride">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="5.5" cy="17.5" r="3.5"></circle>
+            <circle cx="18.5" cy="17.5" r="3.5"></circle>
+            <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h2"></path>
+          </svg>
+          <span>Ride Simulator</span>
+        </button>
+
+        <button type="button" role="tab" id="tab-btn-charge" data-tab="charge" class="nav-tab" aria-selected="false" aria-controls="page-charge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="7" width="16" height="10" rx="2" ry="2"></rect>
+            <line x1="22" y1="11" x2="22" y2="13"></line>
+            <polyline points="11 10 9 12 12 12 10 14"></polyline>
+          </svg>
+          <span>Charging Calculator</span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="main-container">
+    <!-- ======================================================================
+         COLLAPSIBLE VEHICLE & CHARGING BASELINE SETTINGS
+         ====================================================================== -->
+    <details class="specs-drawer" id="baseline-drawer">
+      <summary class="specs-summary">
+        <div class="specs-summary-left">
+          <span>⚙️ Vehicle &amp; Charging Baseline Settings</span>
+          <span class="badge-pill">4.3 kWh</span>
+          <span class="badge-pill emerald">0.8% / km (2 Riders)</span>
+          <span class="badge-pill amber">5.0h Full Charge</span>
+        </div>
+        <span style="font-size: 0.78rem; color: var(--accent-cyan);">Edit / View ▾</span>
+      </summary>
+      <div class="specs-body">
+        <div class="specs-grid">
+          <div class="spec-item">
+            <div class="label">Motorcycle &amp; Load</div>
+            <div class="val">DatBike Quantum S3</div>
+            <div class="sub">Typical load: 2 riders</div>
+          </div>
+          <div class="spec-item">
+            <div class="label">Usable Battery Pack</div>
+            <div class="val tabular" id="spec-capacity-display">4.30 kWh</div>
+            <div class="sub">1% battery = 43.0 Wh</div>
+          </div>
+          <div class="spec-item">
+            <div class="label">Real-World Range</div>
+            <div class="val tabular" id="spec-range-display">100 km @ 80%</div>
+            <div class="sub" id="spec-full-range-sub">125 km full (100% → 0%)</div>
+          </div>
+          <div class="spec-item">
+            <div class="label">Charger Baseline</div>
+            <div class="val tabular" id="spec-charge-display">5.0 hrs (0–100%)</div>
+            <div class="sub">900 W rated • ~20% / hr avg</div>
+          </div>
+        </div>
+
+        <div class="form-grid" style="margin-top: 0.5rem;">
+          <div class="form-group">
+            <label class="form-label" for="global-battery-kwh">Battery Capacity (kWh)</label>
+            <div class="number-unit-wrap">
+              <input type="number" id="global-battery-kwh" min="1.0" max="20.0" step="0.1" value="4.3" />
+              <span class="unit-tag">kWh</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="global-base-consumption">Baseline Consumption (% / km)</label>
+            <div class="number-unit-wrap">
+              <input type="number" id="global-base-consumption" min="0.2" max="3.0" step="0.01" value="0.80" />
+              <span class="unit-tag">% / km</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="global-full-charge-hrs">Baseline 0–100% Charge Time (hrs)</label>
+            <div class="number-unit-wrap">
+              <input type="number" id="global-full-charge-hrs" min="0.5" max="24.0" step="0.1" value="5.0" />
+              <span class="unit-tag">hours</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 0.75rem; display: flex; justify-content: flex-end;">
+          <button type="button" id="global-reset-specs-btn" class="btn-secondary">↺ Restore Quantum S3 Factory Baseline</button>
+        </div>
+      </div>
+    </details>
+
+    <!-- ======================================================================
+         PAGE 1: RIDE SIMULATOR (#page-ride)
+         ====================================================================== -->
+    <section id="page-ride" class="page-view active" role="tabpanel" aria-labelledby="tab-btn-ride">
+      <!-- SECTION A: SINGLE RIDE ESTIMATOR -->
+      <article class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <h2>
+              <span>🛵 Single Ride Estimator</span>
+            </h2>
+            <p>Estimate battery usage, remaining range, and kWh consumed for a ride.</p>
+          </div>
+          <button type="button" id="ride-reset-btn" class="btn-secondary">↺ Reset</button>
+        </div>
+
+        <div class="form-grid">
+          <!-- Starting Battery % -->
+          <div class="form-group">
+            <div class="label-row">
+              <label class="form-label" for="ride-start-pct">Starting Battery</label>
+              <span class="badge-pill tabular" id="ride-start-kwh-tag">3.66 kWh</span>
+            </div>
+            <div class="control-box">
+              <div class="slider-input-row">
+                <input type="range" id="ride-start-slider" class="battery-slider" min="0" max="100" step="1" value="85" aria-label="Starting battery percentage slider" />
+                <div class="compact-num-wrap">
+                  <input type="number" id="ride-start-pct" min="0" max="100" step="1" value="85" />
+                  <span class="unit-tag">%</span>
+                </div>
+              </div>
+              <div class="preset-row" id="ride-start-presets" aria-label="Starting battery presets">
+                <button type="button" class="preset-btn" data-ride-start-val="10">10%</button>
+                <button type="button" class="preset-btn" data-ride-start-val="20">20%</button>
+                <button type="button" class="preset-btn" data-ride-start-val="30">30%</button>
+                <button type="button" class="preset-btn" data-ride-start-val="50">50%</button>
+                <button type="button" class="preset-btn" data-ride-start-val="80">80%</button>
+                <button type="button" class="preset-btn" data-ride-start-val="100">100%</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Planned Riding Distance -->
+          <div class="form-group">
+            <div class="label-row">
+              <label class="form-label" for="ride-distance-km">Planned Riding Distance</label>
+              <span class="badge-pill emerald tabular" id="ride-max-possible-tag">Max 106.3 km</span>
+            </div>
+            <div class="control-box">
+              <div class="slider-input-row">
+                <input type="range" id="ride-distance-slider" class="battery-slider" min="0" max="150" step="1" value="35" aria-label="Planned riding distance slider" />
+                <div class="compact-num-wrap">
+                  <input type="number" id="ride-distance-km" min="0" max="500" step="0.5" value="35" />
+                  <span class="unit-tag">km</span>
+                </div>
+              </div>
+              <div class="preset-row" id="ride-dist-presets" aria-label="Riding distance presets">
+                <button type="button" class="preset-btn" data-ride-dist-val="10">10 km</button>
+                <button type="button" class="preset-btn" data-ride-dist-val="25">25 km</button>
+                <button type="button" class="preset-btn" data-ride-dist-val="50">50 km</button>
+                <button type="button" class="preset-btn" data-ride-dist-val="80">80 km</button>
+                <button type="button" class="preset-btn" data-ride-dist-val="100">100 km</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Consumption Rate Override -->
+          <div class="form-group full-width">
+            <div class="label-row">
+              <label class="form-label" for="ride-consumption-pct">Consumption Rate (% per km)</label>
+              <span class="unit-tag tabular" id="ride-wh-per-km-tag">34.4 Wh/km • 125.0 km full range</span>
+            </div>
+            <div class="number-unit-wrap">
+              <input type="number" id="ride-consumption-pct" min="0.2" max="3.0" step="0.01" value="0.80" />
+              <span class="unit-tag">% / km</span>
+            </div>
+            <div class="preset-row" id="ride-preset-group" aria-label="Riding condition presets">
+              <button type="button" class="preset-btn" data-rate="0.68">1 Rider Eco (0.68%/km)</button>
+              <button type="button" class="preset-btn active" data-rate="0.80">2 Riders Normal (0.80%/km)</button>
+              <button type="button" class="preset-btn" data-rate="0.95">Hilly / Fast (0.95%/km)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual Battery Gauge -->
+        <div class="battery-gauge-box">
+          <div class="gauge-header">
+            <span>Estimated Arrival Battery</span>
+            <span id="ride-gauge-status" class="tabular">85% → 57.0% remaining</span>
+          </div>
+          <div class="battery-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="57" id="ride-battery-progressbar">
+            <div class="battery-fill" id="ride-battery-fill" style="width: 57%;"></div>
+          </div>
+        </div>
+
+        <!-- Warning Banner if Battery Runs Out -->
+        <div id="ride-shortfall-alert" class="alert-banner rose hidden" role="alert">
+          <span>⚠️</span>
+          <div id="ride-shortfall-text"></div>
+        </div>
+
+        <!-- 4 KPI Outputs -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Battery Used</div>
+            <div class="kpi-value cyan tabular" id="ride-out-used-pct">28.0%</div>
+            <div class="kpi-sub tabular" id="ride-out-used-sub">For 35.0 km</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Remaining Battery</div>
+            <div class="kpi-value emerald tabular" id="ride-out-rem-pct">57.0%</div>
+            <div class="kpi-sub tabular" id="ride-out-rem-kwh">2.45 kWh left</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Remaining Range</div>
+            <div class="kpi-value tabular" id="ride-out-rem-km">71.3 km</div>
+            <div class="kpi-sub">Until 0% battery</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Energy Consumed</div>
+            <div class="kpi-value tabular" id="ride-out-energy-kwh">1.20 kWh</div>
+            <div class="kpi-sub tabular" id="ride-out-energy-wh">1,204 Wh total</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- SECTION B: TRIP CHARGING PLANNER -->
+      <article class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <h2>
+              <span>🗺️ Trip Charging Planner</span>
+            </h2>
+            <p>Plan multi-leg journeys while keeping battery above your safety reserve.</p>
+          </div>
+          <button type="button" id="trip-reset-btn" class="btn-secondary">↺ Reset Trip</button>
+        </div>
+
+        <div class="form-grid">
+          <!-- Total Trip Distance -->
+          <div class="form-group">
+            <label class="form-label" for="trip-distance-km">Total Trip Distance</label>
+            <div class="number-unit-wrap">
+              <input type="number" id="trip-distance-km" min="0" max="2000" step="1" value="220" />
+              <span class="unit-tag">km</span>
+            </div>
+          </div>
+
+          <!-- Starting Battery % -->
+          <div class="form-group">
+            <div class="label-row">
+              <label class="form-label" for="trip-start-pct">Starting Battery</label>
+              <button type="button" id="trip-sync-start-btn" class="inline-link-btn">Sync with Ride Start %</button>
+            </div>
+            <div class="control-box">
+              <div class="slider-input-row">
+                <input type="range" id="trip-start-slider" class="battery-slider" min="0" max="100" step="1" value="90" aria-label="Trip starting battery percentage slider" />
+                <div class="compact-num-wrap">
+                  <input type="number" id="trip-start-pct" min="0" max="100" step="1" value="90" />
+                  <span class="unit-tag">%</span>
+                </div>
+              </div>
+              <div class="preset-row" id="trip-start-presets" aria-label="Trip starting battery presets">
+                <button type="button" class="preset-btn" data-trip-start-val="10">10%</button>
+                <button type="button" class="preset-btn" data-trip-start-val="20">20%</button>
+                <button type="button" class="preset-btn" data-trip-start-val="30">30%</button>
+                <button type="button" class="preset-btn" data-trip-start-val="50">50%</button>
+                <button type="button" class="preset-btn" data-trip-start-val="80">80%</button>
+                <button type="button" class="preset-btn" data-trip-start-val="100">100%</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Minimum Arrival Battery Reserve % -->
+          <div class="form-group">
+            <div class="label-row">
+              <label class="form-label" for="trip-reserve-pct">Min Arrival Reserve</label>
+              <span class="unit-tag tabular" id="trip-reserve-km-tag">= 25.0 km buffer</span>
+            </div>
+            <div class="control-box">
+              <div class="slider-input-row">
+                <input type="range" id="trip-reserve-slider" class="battery-slider" min="0" max="80" step="1" value="20" aria-label="Minimum arrival battery reserve slider" />
+                <div class="compact-num-wrap">
+                  <input type="number" id="trip-reserve-pct" min="0" max="80" step="1" value="20" />
+                  <span class="unit-tag">%</span>
+                </div>
+              </div>
+              <div class="preset-row" id="trip-reserve-presets" aria-label="Safety reserve presets">
+                <button type="button" class="preset-btn" data-trip-reserve-val="10">10%</button>
+                <button type="button" class="preset-btn" data-trip-reserve-val="15">15%</button>
+                <button type="button" class="preset-btn" data-trip-reserve-val="20">20%</button>
+                <button type="button" class="preset-btn" data-trip-reserve-val="25">25%</button>
+                <button type="button" class="preset-btn" data-trip-reserve-val="30">30%</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Target Charge Level at Stops % -->
+          <div class="form-group">
+            <div class="label-row">
+              <label class="form-label" for="trip-target-pct">Target Charge at Stops</label>
+              <span class="unit-tag tabular" id="trip-leg-max-tag">100.0 km / leg</span>
+            </div>
+            <div class="number-unit-wrap">
+              <input type="number" id="trip-target-pct" min="20" max="100" step="1" value="100" />
+              <span class="unit-tag">%</span>
+            </div>
+          </div>
+
+          <!-- Full Charging Duration (0-100%) -->
+          <div class="form-group">
+            <div class="label-row">
+              <label class="form-label" for="trip-charge-duration">Full Charge Duration (0–100%)</label>
+              <span class="unit-tag tabular" id="trip-rate-tag">20.0% / hr</span>
+            </div>
+            <div class="number-unit-wrap">
+              <input type="number" id="trip-charge-duration" min="0.5" max="24" step="0.1" value="5.0" />
+              <span class="unit-tag">hours</span>
+            </div>
+          </div>
+
+          <!-- Stop Spacing Strategy -->
+          <div class="form-group">
+            <label class="form-label">Stop Pacing Mode</label>
+            <div class="preset-row" id="trip-strategy-group" style="margin-top: 0;">
+              <button type="button" class="preset-btn active" data-strategy="balanced">Balanced Legs</button>
+              <button type="button" class="preset-btn" data-strategy="max">Max Distance per Leg</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Validation / Status Banner -->
+        <div id="trip-status-banner" class="alert-banner emerald hidden" role="status">
+          <span id="trip-status-icon">✅</span>
+          <div id="trip-status-text"></div>
+        </div>
+
+        <!-- Trip Summary KPIs -->
+        <div class="kpi-grid" id="trip-kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Charging Stops</div>
+            <div class="kpi-value cyan tabular" id="trip-out-stops">2 stops</div>
+            <div class="kpi-sub tabular" id="trip-out-stops-sub">3 riding legs</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Avg Leg Distance</div>
+            <div class="kpi-value tabular" id="trip-out-avg-leg">73.3 km</div>
+            <div class="kpi-sub tabular" id="trip-out-max-leg">Max 100.0 km/leg</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Total Charge Time</div>
+            <div class="kpi-value amber tabular" id="trip-out-charge-time">5h 18m</div>
+            <div class="kpi-sub tabular" id="trip-out-charge-pct">+106.0% added</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Final Arrival Battery</div>
+            <div class="kpi-value emerald tabular" id="trip-out-final-soc">20.0%</div>
+            <div class="kpi-sub tabular" id="trip-out-final-km">25.0 km left</div>
+          </div>
+        </div>
+
+        <!-- Practical Charging Itinerary -->
+        <div class="itinerary-wrapper" id="trip-itinerary-wrapper">
+          <div class="itinerary-header">
+            <h3>Practical Charging Itinerary</h3>
+            <span class="badge-pill tabular" id="trip-consumption-badge">Using 0.80% / km</span>
+          </div>
+          <div class="timeline" id="trip-timeline-list"></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ======================================================================
+         PAGE 2: CHARGING CALCULATOR (#page-charge)
+         Completely independent DOM IDs (#calc-...) and state
+         ====================================================================== -->
+    <section id="page-charge" class="page-view" role="tabpanel" aria-labelledby="tab-btn-charge">
+      <article class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <h2>
+              <span>⚡ Charging Calculator</span>
+            </h2>
+            <p>Calculate charging duration, energy needed, and exact completion time.</p>
+          </div>
+          <button type="button" id="calc-reset-btn" class="btn-secondary">↺ Reset</button>
+        </div>
+
+        <div class="form-grid">
+          <!-- Starting Battery % when charging began -->
+          <div class="form-group">
+            <div class="label-row">
+              <label class="form-label" for="calc-current-pct">Starting Battery (at Plug-in)</label>
+              <span class="badge-pill tabular" id="calc-current-kwh-tag">1.08 kWh stored</span>
+            </div>
+            <div class="control-box">
+              <div class="slider-input-row">
+                <input type="range" id="calc-current-slider" class="battery-slider" min="0" max="100" step="1" value="25" aria-label="Starting battery percentage slider" />
+                <div class="compact-num-wrap">
+                  <input type="number" id="calc-current-pct" min="0" max="100" step="1" value="25" />
+                  <span class="unit-tag">%</span>
+                </div>
+              </div>
+              <div class="preset-row" id="calc-curr-presets" aria-label="Starting battery presets">
+                <button type="button" class="preset-btn" data-calc-curr-val="10">10%</button>
+                <button type="button" class="preset-btn" data-calc-curr-val="20">20%</button>
+                <button type="button" class="preset-btn" data-calc-curr-val="30">30%</button>
+                <button type="button" class="preset-btn" data-calc-curr-val="50">50%</button>
+                <button type="button" class="preset-btn" data-calc-curr-val="80">80%</button>
+                <button type="button" class="preset-btn" data-calc-curr-val="100">100%</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Target Battery % -->
+          <div class="form-group">
+            <div class="label-row">
+              <label class="form-label" for="calc-target-pct">Target Battery Level</label>
+              <button type="button" id="calc-full100-btn" class="inline-link-btn">Set 100% Full</button>
+            </div>
+            <div class="control-box">
+              <div class="slider-input-row">
+                <input type="range" id="calc-target-slider" class="battery-slider" min="1" max="100" step="1" value="100" aria-label="Target battery percentage slider" />
+                <div class="compact-num-wrap">
+                  <input type="number" id="calc-target-pct" min="1" max="100" step="1" value="100" />
+                  <span class="unit-tag">%</span>
+                </div>
+              </div>
+              <div class="preset-row" id="calc-targ-presets" aria-label="Target battery presets">
+                <button type="button" class="preset-btn" data-calc-targ-val="80">80%</button>
+                <button type="button" class="preset-btn" data-calc-targ-val="90">90%</button>
+                <button type="button" class="preset-btn" data-calc-targ-val="95">95%</button>
+                <button type="button" class="preset-btn" data-calc-targ-val="100">100%</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Full Charging Duration (0% to 100%) -->
+          <div class="form-group">
+            <div class="label-row">
+              <label class="form-label" for="calc-full-duration">Full Charge Time (0% → 100%)</label>
+              <span class="unit-tag">Baseline: 5.0 hrs</span>
+            </div>
+            <div class="number-unit-wrap">
+              <input type="number" id="calc-full-duration" min="0.5" max="24" step="0.1" value="5.0" />
+              <span class="unit-tag">hours</span>
+            </div>
+          </div>
+
+          <!-- Charging Start Date & Time -->
+          <div class="form-group">
+            <div class="label-row">
+              <label class="form-label" for="calc-start-datetime">Charging Start Date &amp; Time</label>
+            </div>
+            <div class="datetime-row">
+              <div class="number-unit-wrap">
+                <input type="datetime-local" id="calc-start-datetime" />
+              </div>
+              <button type="button" id="calc-now-btn" class="btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>Use current time</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Validation Notice if current >= target -->
+        <div id="calc-info-banner" class="alert-banner emerald hidden" role="status">
+          <span>🔋</span>
+          <div id="calc-info-text"></div>
+        </div>
+
+        <!-- Hero Expected Finish Date & Time -->
+        <div class="finish-hero">
+          <div class="finish-hero-label">Expected Charging Finish Time</div>
+          <div class="finish-hero-time tabular" id="calc-out-finish-main">—</div>
+          <div class="finish-hero-sub tabular" id="calc-out-finish-sub">Starts —</div>
+
+          <div class="charge-bar-container">
+            <div class="charge-bar-track" aria-hidden="true">
+              <div class="charge-bar-existing" id="calc-bar-existing" style="width: 25%;"></div>
+              <div class="charge-bar-added" id="calc-bar-added" style="width: 75%;"></div>
+            </div>
+            <div class="charge-legend tabular">
+              <span>🟢 Start: <strong id="calc-legend-curr">25%</strong></span>
+              <span>⚡ Charge Added: <strong id="calc-legend-add">+75%</strong></span>
+              <span>🏁 Target: <strong id="calc-legend-target">100%</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Real-Time Charging Progress Tracker -->
+        <div class="live-tracker-card" id="calc-live-tracker-card">
+          <div class="live-tracker-header">
+            <div class="live-tracker-title">
+              <span class="live-pulse-dot" id="calc-live-dot" aria-hidden="true"></span>
+              <span>⏱️ Live Charging Progress (Real-Time)</span>
+            </div>
+            <span class="badge-pill emerald tabular" id="calc-live-status-badge">Charging in progress</span>
+          </div>
+
+          <div class="live-metrics-grid">
+            <div class="live-metric-box">
+              <div class="live-metric-label" id="calc-live-elapsed-label">Elapsed Charging Time</div>
+              <div class="live-metric-big cyan tabular" id="calc-live-elapsed-hms">00:00:00</div>
+              <div class="live-metric-sub tabular" id="calc-live-elapsed-sub">0h 00m since plug-in</div>
+            </div>
+
+            <div class="live-metric-box">
+              <div class="live-metric-label">Estimated Current Battery</div>
+              <div class="live-metric-big emerald tabular" id="calc-live-est-soc">25.0%</div>
+              <div class="live-metric-sub tabular" id="calc-live-gained-sub">+0.0% (+0.00 kWh) gained so far</div>
+            </div>
+
+            <div class="live-metric-box">
+              <div class="live-metric-label" id="calc-live-rem-label">Live Remaining to Target</div>
+              <div class="live-metric-big tabular" id="calc-live-rem-hms">03:45:00</div>
+              <div class="live-metric-sub tabular" id="calc-live-rem-sub">75.0% remaining to 100%</div>
+            </div>
+          </div>
+
+          <div class="live-bar-track" aria-hidden="true">
+            <div class="live-bar-start" id="calc-live-bar-start" style="width: 25%;"></div>
+            <div class="live-bar-gained" id="calc-live-bar-gained" style="width: 0%;"></div>
+            <div class="live-bar-remaining" id="calc-live-bar-remaining" style="width: 75%;"></div>
+          </div>
+          <div class="charge-legend tabular">
+            <span>🔵 Start: <strong id="calc-live-leg-start">25%</strong></span>
+            <span>🟢 Gained Now: <strong id="calc-live-leg-gained">+0.0%</strong></span>
+            <span>⏳ Left to Target: <strong id="calc-live-leg-left">75.0%</strong></span>
+          </div>
+
+          <div class="live-tracker-footer">
+            <span class="tabular" id="calc-live-clock-note">Device clock: —</span>
+            <button type="button" id="calc-apply-live-soc-btn" class="btn-secondary">
+              ✓ Apply Estimated % as Starting %
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 KPI Outputs -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Remaining Charge Time</div>
+            <div class="kpi-value cyan tabular" id="calc-out-duration-hm">3h 45m</div>
+            <div class="kpi-sub tabular" id="calc-out-duration-dec">3.75 hours</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Energy Required</div>
+            <div class="kpi-value emerald tabular" id="calc-out-energy-kwh">3.23 kWh</div>
+            <div class="kpi-sub tabular" id="calc-out-energy-wh">3,225 Wh into pack</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Avg Charging Rate</div>
+            <div class="kpi-value tabular" id="calc-out-rate-pct">20.0% / hr</div>
+            <div class="kpi-sub tabular" id="calc-out-rate-w">~860 W avg (900 W max)</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Range Gained (Est.)</div>
+            <div class="kpi-value tabular" id="calc-out-range-added">+93.8 km</div>
+            <div class="kpi-sub tabular" id="calc-out-range-total">125.0 km at target</div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ======================================================================
+         DEDICATED DATA PERSISTENCE BAR (Clean Document Flow, Zero Overlap)
+         ====================================================================== -->
+    <section class="storage-action-bar" aria-label="Save or reset simulator inputs">
+      <div class="storage-action-info">
+        <strong>Device Storage &amp; Settings</strong>
+        <span id="storage-status-sub">Save your custom values offline on this device.</span>
+      </div>
+      <div class="storage-action-buttons">
+        <button type="button" id="save-all-btn" class="btn-save-solid" aria-label="Save all inputs" title="Save all inputs to this device">
+          <span>💾</span>
+          <span id="save-all-label">Save All Inputs</span>
+        </button>
+        <button type="button" id="clear-saved-btn" class="btn-reset-outline" aria-label="Reset all saved inputs" title="Clear saved inputs and restore defaults">
+          <span>↺</span>
+          <span>Reset to Defaults</span>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    DatBike Quantum S3 Simulator • Offline-Ready Standalone Utility • Baseline: 4.3 kWh, 0.8%/km (2 riders), 5h full charge
+  </footer>
+
+  <!-- Floating Toast Feedback -->
+  <div id="save-toast" class="save-toast" role="status" aria-live="polite">
+    <span id="save-toast-icon">✅</span>
+    <span id="save-toast-msg">Inputs saved to device</span>
+  </div>
+
+  <!-- ========================================================================
+       MODULAR VANILLA JAVASCRIPT (Zero External Dependencies)
+       ======================================================================== -->
+  <script>
+    (function () {
+      "use strict";
+
+      /* ======================================================================
+         1. SHARED BASELINE CONFIGURATION & HELPERS
+         ====================================================================== */
+      const FACTORY_DEFAULTS = Object.freeze({
+        batteryKwh: 4.3,
+        consumptionPctPerKm: 0.8,
+        fullChargeHours: 5.0,
+        chargerRatedWatts: 900
+      });
+
+      const AppConfig = {
+        batteryKwh: FACTORY_DEFAULTS.batteryKwh,
+        consumptionPctPerKm: FACTORY_DEFAULTS.consumptionPctPerKm,
+        fullChargeHours: FACTORY_DEFAULTS.fullChargeHours,
+        chargerRatedWatts: FACTORY_DEFAULTS.chargerRatedWatts,
+        listeners: []
+      };
+
+      const STORAGE_KEY = "datbike_quantum_s3_simulator_v1";
+
+      const StorageManager = (function () {
+        let memoryFallback = null;
+
+        function read() {
+          try {
+            const raw = window.localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed && typeof parsed === "object") {
+                return parsed;
+              }
+            }
+          } catch (e) {
+            // Fallback when localStorage is blocked (e.g., strict file:// or private browsing)
+          }
+          return memoryFallback;
+        }
+
+        function write(payload) {
+          memoryFallback = payload;
+          try {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function clear() {
+          memoryFallback = null;
+          try {
+            window.localStorage.removeItem(STORAGE_KEY);
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        return { read, write, clear };
+      })();
+
+      function onConfigChange(fn) {
+        if (typeof fn === "function") {
+          AppConfig.listeners.push(fn);
+        }
+      }
+
+      function notifyConfigChanged() {
+        AppConfig.listeners.forEach((fn) => {
+          try {
+            fn(AppConfig);
+          } catch (err) {
+            console.error("Config listener error:", err);
+          }
+        });
+      }
+
+      function clamp(val, min, max, fallback) {
+        const num = Number(val);
+        if (!Number.isFinite(num)) return fallback;
+        return Math.min(max, Math.max(min, num));
+      }
+
+      function formatHoursMinutes(decimalHours) {
+        if (!Number.isFinite(decimalHours) || decimalHours <= 0) {
+          return "0h 00m";
+        }
+        const totalMinutes = Math.round(decimalHours * 60);
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        return `${h}h ${String(m).padStart(2, "0")}m`;
+      }
+
+      function toLocalDateTimeInputString(dateObj) {
+        const d = dateObj instanceof Date && !isNaN(dateObj.getTime()) ? dateObj : new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        const yyyy = d.getFullYear();
+        const mm = pad(d.getMonth() + 1);
+        const dd = pad(d.getDate());
+        const hh = pad(d.getHours());
+        const min = pad(d.getMinutes());
+        return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+      }
+
+      /* ======================================================================
+         2. NAVIGATION & THEME CONTROLLER
+         ====================================================================== */
+      const NavigationController = (function () {
+        const tabButtons = document.querySelectorAll(".nav-tab[data-tab]");
+        const pageRide = document.getElementById("page-ride");
+        const pageCharge = document.getElementById("page-charge");
+        const themeBtn = document.getElementById("theme-toggle-btn");
+        const themeIcon = document.getElementById("theme-toggle-icon");
+        let activeTab = "ride";
+
+        function switchTab(target) {
+          activeTab = target === "charge" ? "charge" : "ride";
+          const isRide = activeTab === "ride";
+          tabButtons.forEach((btn) => {
+            const active = btn.getAttribute("data-tab") === activeTab;
+            btn.classList.toggle("active", active);
+            btn.setAttribute("aria-selected", String(active));
+          });
+
+          if (pageRide) {
+            pageRide.classList.toggle("active", isRide);
+            pageRide.style.display = isRide ? "block" : "none";
+          }
+          if (pageCharge) {
+            pageCharge.classList.toggle("active", !isRide);
+            pageCharge.style.display = !isRide ? "block" : "none";
+          }
+        }
+
+        function getActiveTab() {
+          return activeTab;
+        }
+
+        function applyTheme(themeVal) {
+          if (themeVal === "light" || themeVal === "dark") {
+            document.documentElement.setAttribute("data-theme", themeVal);
+            if (themeIcon) themeIcon.textContent = themeVal === "dark" ? "🌙" : "☀️";
+          } else {
+            document.documentElement.removeAttribute("data-theme");
+            if (themeIcon) themeIcon.textContent = "🌓";
+          }
+        }
+
+        function initTheme(savedTheme) {
+          if (savedTheme === "light" || savedTheme === "dark") {
+            applyTheme(savedTheme);
+          } else {
+            try {
+              const legacySaved = localStorage.getItem("qs3_theme");
+              if (legacySaved === "light" || legacySaved === "dark") {
+                applyTheme(legacySaved);
+              }
+            } catch (e) {}
+          }
+
+          if (themeBtn) {
+            themeBtn.addEventListener("click", () => {
+              const current = document.documentElement.getAttribute("data-theme");
+              const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+              const effectiveDark = current ? current === "dark" : prefersDark;
+              const next = effectiveDark ? "light" : "dark";
+              applyTheme(next);
+              try {
+                localStorage.setItem("qs3_theme", next);
+              } catch (e) {}
+            });
+          }
+        }
+
+        function initBaselinePanel(savedConfig) {
+          const kwhInput = document.getElementById("global-battery-kwh");
+          const consInput = document.getElementById("global-base-consumption");
+          const hrsInput = document.getElementById("global-full-charge-hrs");
+          const resetBtn = document.getElementById("global-reset-specs-btn");
+
+          const dispCap = document.getElementById("spec-capacity-display");
+          const dispRange = document.getElementById("spec-range-display");
+          const dispFullSub = document.getElementById("spec-full-range-sub");
+          const dispCharge = document.getElementById("spec-charge-display");
+
+          if (savedConfig && typeof savedConfig === "object") {
+            AppConfig.batteryKwh = clamp(savedConfig.batteryKwh, 1.0, 20.0, FACTORY_DEFAULTS.batteryKwh);
+            AppConfig.consumptionPctPerKm = clamp(savedConfig.consumptionPctPerKm, 0.2, 3.0, FACTORY_DEFAULTS.consumptionPctPerKm);
+            AppConfig.fullChargeHours = clamp(savedConfig.fullChargeHours, 0.5, 24.0, FACTORY_DEFAULTS.fullChargeHours);
+          }
+
+          function syncBaselineInputs() {
+            if (kwhInput) kwhInput.value = AppConfig.batteryKwh.toFixed(1);
+            if (consInput) consInput.value = AppConfig.consumptionPctPerKm.toFixed(2);
+            if (hrsInput) hrsInput.value = AppConfig.fullChargeHours.toFixed(1);
+          }
+
+          function updateSpecSummary() {
+            const fullKm = 100 / AppConfig.consumptionPctPerKm;
+            const range80 = 80 / AppConfig.consumptionPctPerKm;
+            if (dispCap) dispCap.textContent = `${AppConfig.batteryKwh.toFixed(2)} kWh`;
+            if (dispRange) dispRange.textContent = `${range80.toFixed(0)} km @ 80%`;
+            if (dispFullSub) dispFullSub.textContent = `${fullKm.toFixed(0)} km full (100% → 0%)`;
+            if (dispCharge) dispCharge.textContent = `${AppConfig.fullChargeHours.toFixed(1)} hrs (0–100%)`;
+          }
+
+          function resetBaselineToDefaults() {
+            AppConfig.batteryKwh = FACTORY_DEFAULTS.batteryKwh;
+            AppConfig.consumptionPctPerKm = FACTORY_DEFAULTS.consumptionPctPerKm;
+            AppConfig.fullChargeHours = FACTORY_DEFAULTS.fullChargeHours;
+            syncBaselineInputs();
+            updateSpecSummary();
+            notifyConfigChanged();
+          }
+
+          if (kwhInput) {
+            kwhInput.addEventListener("input", () => {
+              AppConfig.batteryKwh = clamp(kwhInput.value, 1.0, 20.0, FACTORY_DEFAULTS.batteryKwh);
+              updateSpecSummary();
+              notifyConfigChanged();
+            });
+            kwhInput.addEventListener("blur", () => {
+              kwhInput.value = AppConfig.batteryKwh.toFixed(1);
+            });
+          }
+
+          if (consInput) {
+            consInput.addEventListener("input", () => {
+              AppConfig.consumptionPctPerKm = clamp(consInput.value, 0.2, 3.0, FACTORY_DEFAULTS.consumptionPctPerKm);
+              updateSpecSummary();
+              notifyConfigChanged();
+            });
+            consInput.addEventListener("blur", () => {
+              consInput.value = AppConfig.consumptionPctPerKm.toFixed(2);
+            });
+          }
+
+          if (hrsInput) {
+            hrsInput.addEventListener("input", () => {
+              AppConfig.fullChargeHours = clamp(hrsInput.value, 0.5, 24.0, FACTORY_DEFAULTS.fullChargeHours);
+              updateSpecSummary();
+              notifyConfigChanged();
+            });
+            hrsInput.addEventListener("blur", () => {
+              hrsInput.value = AppConfig.fullChargeHours.toFixed(1);
+            });
+          }
+
+          if (resetBtn) {
+            resetBtn.addEventListener("click", resetBaselineToDefaults);
+          }
+
+          syncBaselineInputs();
+          updateSpecSummary();
+
+          return { resetBaselineToDefaults };
+        }
+
+        let baselineApi = null;
+
+        function init(savedMeta) {
+          tabButtons.forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+              e.preventDefault();
+              const target = btn.getAttribute("data-tab") || "ride";
+              switchTab(target);
+            });
+          });
+          const initialTab = savedMeta && savedMeta.activeTab === "charge" ? "charge" : "ride";
+          switchTab(initialTab);
+          initTheme(savedMeta ? savedMeta.theme : null);
+          baselineApi = initBaselinePanel(savedMeta ? savedMeta.config : null);
+        }
+
+        function resetAll() {
+          if (baselineApi && typeof baselineApi.resetBaselineToDefaults === "function") {
+            baselineApi.resetBaselineToDefaults();
+          }
+          switchTab("ride");
+        }
+
+        return { init, switchTab, getActiveTab, resetAll };
+      })();
+
+      /* ======================================================================
+         3. PAGE 1 MODULE: RIDE SIMULATOR & TRIP CHARGING PLANNER
+         Strictly scoped to #page-ride elements
+         ====================================================================== */
+      const RideSimulatorModule = (function () {
+        const root = document.getElementById("page-ride");
+        if (!root) return { init: function () {} };
+
+        const q = (selector) => root.querySelector(selector);
+
+        const els = {
+          rideStartSlider: q("#ride-start-slider"),
+          rideStartPct: q("#ride-start-pct"),
+          rideStartPresetBtns: root.querySelectorAll("[data-ride-start-val]"),
+          rideStartKwhTag: q("#ride-start-kwh-tag"),
+
+          rideDistSlider: q("#ride-distance-slider"),
+          rideDistanceKm: q("#ride-distance-km"),
+          rideDistPresetBtns: root.querySelectorAll("[data-ride-dist-val]"),
+          rideMaxPossibleTag: q("#ride-max-possible-tag"),
+
+          rideConsumptionPct: q("#ride-consumption-pct"),
+          rideWhPerKmTag: q("#ride-wh-per-km-tag"),
+          ridePresetBtns: root.querySelectorAll("#ride-preset-group .preset-btn"),
+          rideResetBtn: q("#ride-reset-btn"),
+
+          rideGaugeStatus: q("#ride-gauge-status"),
+          rideProgressbar: q("#ride-battery-progressbar"),
+          rideBatteryFill: q("#ride-battery-fill"),
+          rideShortfallAlert: q("#ride-shortfall-alert"),
+          rideShortfallText: q("#ride-shortfall-text"),
+
+          rideOutUsedPct: q("#ride-out-used-pct"),
+          rideOutUsedSub: q("#ride-out-used-sub"),
+          rideOutRemPct: q("#ride-out-rem-pct"),
+          rideOutRemKwh: q("#ride-out-rem-kwh"),
+          rideOutRemKm: q("#ride-out-rem-km"),
+          rideOutEnergyKwh: q("#ride-out-energy-kwh"),
+          rideOutEnergyWh: q("#ride-out-energy-wh"),
+
+          // Trip Charging Planner Elements
+          tripDistanceKm: q("#trip-distance-km"),
+          tripStartSlider: q("#trip-start-slider"),
+          tripStartPct: q("#trip-start-pct"),
+          tripStartPresetBtns: root.querySelectorAll("[data-trip-start-val]"),
+          tripSyncStartBtn: q("#trip-sync-start-btn"),
+          tripReserveSlider: q("#trip-reserve-slider"),
+          tripReservePct: q("#trip-reserve-pct"),
+          tripReservePresetBtns: root.querySelectorAll("[data-trip-reserve-val]"),
+          tripReserveKmTag: q("#trip-reserve-km-tag"),
+          tripTargetPct: q("#trip-target-pct"),
+          tripLegMaxTag: q("#trip-leg-max-tag"),
+          tripChargeDuration: q("#trip-charge-duration"),
+          tripRateTag: q("#trip-rate-tag"),
+          tripStrategyBtns: root.querySelectorAll("#trip-strategy-group .preset-btn"),
+          tripResetBtn: q("#trip-reset-btn"),
+
+          tripStatusBanner: q("#trip-status-banner"),
+          tripStatusIcon: q("#trip-status-icon"),
+          tripStatusText: q("#trip-status-text"),
+
+          tripKpiGrid: q("#trip-kpi-grid"),
+          tripOutStops: q("#trip-out-stops"),
+          tripOutStopsSub: q("#trip-out-stops-sub"),
+          tripOutAvgLeg: q("#trip-out-avg-leg"),
+          tripOutMaxLeg: q("#trip-out-max-leg"),
+          tripOutChargeTime: q("#trip-out-charge-time"),
+          tripOutChargePct: q("#trip-out-charge-pct"),
+          tripOutFinalSoc: q("#trip-out-final-soc"),
+          tripOutFinalKm: q("#trip-out-final-km"),
+
+          tripItineraryWrapper: q("#trip-itinerary-wrapper"),
+          tripConsumptionBadge: q("#trip-consumption-badge"),
+          tripTimelineList: q("#trip-timeline-list")
+        };
+
+        const state = {
+          rideStartPct: 85,
+          rideDistanceKm: 35,
+          consumptionPctPerKm: 0.80,
+
+          tripDistanceKm: 220,
+          tripStartPct: 90,
+          tripReservePct: 20,
+          tripTargetPct: 100,
+          tripChargeDuration: 5.0,
+          tripStrategy: "balanced"
+        };
+
+        function updatePresetHighlights() {
+          els.ridePresetBtns.forEach((btn) => {
+            const rate = parseFloat(btn.getAttribute("data-rate"));
+            btn.classList.toggle("active", Math.abs(rate - state.consumptionPctPerKm) < 0.005);
+          });
+          els.rideStartPresetBtns.forEach((btn) => {
+            const val = parseFloat(btn.getAttribute("data-ride-start-val"));
+            btn.classList.toggle("active", Math.abs(val - state.rideStartPct) < 0.1);
+          });
+          els.rideDistPresetBtns.forEach((btn) => {
+            const val = parseFloat(btn.getAttribute("data-ride-dist-val"));
+            btn.classList.toggle("active", Math.abs(val - state.rideDistanceKm) < 0.1);
+          });
+          els.tripStartPresetBtns.forEach((btn) => {
+            const val = parseFloat(btn.getAttribute("data-trip-start-val"));
+            btn.classList.toggle("active", Math.abs(val - state.tripStartPct) < 0.1);
+          });
+          els.tripReservePresetBtns.forEach((btn) => {
+            const val = parseFloat(btn.getAttribute("data-trip-reserve-val"));
+            btn.classList.toggle("active", Math.abs(val - state.tripReservePct) < 0.1);
+          });
+        }
+
+        function calculateSingleRide() {
+          const capKwh = AppConfig.batteryKwh;
+          const startPct = clamp(state.rideStartPct, 0, 100, 85);
+          const distKm = clamp(state.rideDistanceKm, 0, 5000, 35);
+          const ratePctPerKm = clamp(state.consumptionPctPerKm, 0.1, 5.0, 0.8);
+
+          const startKwh = (startPct / 100) * capKwh;
+          const maxPossibleKm = ratePctPerKm > 0 ? startPct / ratePctPerKm : 0;
+          const fullRangeKm = ratePctPerKm > 0 ? 100 / ratePctPerKm : 0;
+          const whPerKm = (ratePctPerKm / 100) * capKwh * 1000;
+
+          const usedPct = distKm * ratePctPerKm;
+          const rawRemPct = startPct - usedPct;
+          const clampedRemPct = Math.max(0, rawRemPct);
+          const remKwh = (clampedRemPct / 100) * capKwh;
+          const remKm = ratePctPerKm > 0 ? clampedRemPct / ratePctPerKm : 0;
+          const energyUsedKwh = (usedPct / 100) * capKwh;
+          const energyUsedWh = energyUsedKwh * 1000;
+
+          if (els.rideStartKwhTag) els.rideStartKwhTag.textContent = `${startKwh.toFixed(2)} kWh`;
+          if (els.rideMaxPossibleTag) els.rideMaxPossibleTag.textContent = `Max ${maxPossibleKm.toFixed(1)} km`;
+          if (els.rideWhPerKmTag) {
+            els.rideWhPerKmTag.textContent = `${whPerKm.toFixed(1)} Wh/km • ${fullRangeKm.toFixed(1)} km full range`;
+          }
+
+          if (els.rideGaugeStatus) {
+            els.rideGaugeStatus.textContent =
+              rawRemPct >= 0
+                ? `${startPct.toFixed(0)}% → ${clampedRemPct.toFixed(1)}% remaining`
+                : `${startPct.toFixed(0)}% → 0.0% (short by ${Math.abs(rawRemPct).toFixed(1)}%)`;
+          }
+
+          if (els.rideProgressbar) {
+            els.rideProgressbar.setAttribute("aria-valuenow", String(Math.round(clampedRemPct)));
+          }
+
+          if (els.rideBatteryFill) {
+            els.rideBatteryFill.style.width = `${Math.min(100, clampedRemPct)}%`;
+            els.rideBatteryFill.classList.remove("amber", "rose");
+            if (clampedRemPct <= 15) {
+              els.rideBatteryFill.classList.add("rose");
+            } else if (clampedRemPct <= 30) {
+              els.rideBatteryFill.classList.add("amber");
+            }
+          }
+
+          if (els.rideShortfallAlert && els.rideShortfallText) {
+            if (rawRemPct < -0.05) {
+              const shortKm = distKm - maxPossibleKm;
+              els.rideShortfallAlert.classList.remove("hidden");
+              els.rideShortfallText.innerHTML =
+                `<strong>Battery insufficient for ${distKm.toFixed(1)} km:</strong> With ${startPct.toFixed(0)}% charge, maximum estimated range is <strong>${maxPossibleKm.toFixed(1)} km</strong> (short by <strong>${shortKm.toFixed(1)} km</strong>). Use the Trip Charging Planner below to schedule a stop.`;
+            } else {
+              els.rideShortfallAlert.classList.add("hidden");
+            }
+          }
+
+          if (els.rideOutUsedPct) els.rideOutUsedPct.textContent = `${usedPct.toFixed(1)}%`;
+          if (els.rideOutUsedSub) els.rideOutUsedSub.textContent = `For ${distKm.toFixed(1)} km`;
+
+          if (els.rideOutRemPct) {
+            els.rideOutRemPct.textContent = `${clampedRemPct.toFixed(1)}%`;
+            els.rideOutRemPct.classList.remove("emerald", "amber", "rose");
+            if (clampedRemPct <= 15) els.rideOutRemPct.classList.add("rose");
+            else if (clampedRemPct <= 30) els.rideOutRemPct.classList.add("amber");
+            else els.rideOutRemPct.classList.add("emerald");
+          }
+          if (els.rideOutRemKwh) els.rideOutRemKwh.textContent = `${remKwh.toFixed(2)} kWh left`;
+          if (els.rideOutRemKm) els.rideOutRemKm.textContent = `${remKm.toFixed(1)} km`;
+          if (els.rideOutEnergyKwh) els.rideOutEnergyKwh.textContent = `${energyUsedKwh.toFixed(2)} kWh`;
+          if (els.rideOutEnergyWh) els.rideOutEnergyWh.textContent = `${Math.round(energyUsedWh).toLocaleString()} Wh total`;
+        }
+
+        function setTripBanner(type, icon, htmlMessage) {
+          if (!els.tripStatusBanner || !els.tripStatusIcon || !els.tripStatusText) return;
+          els.tripStatusBanner.classList.remove("hidden", "emerald", "amber", "rose");
+          els.tripStatusBanner.classList.add(type);
+          els.tripStatusIcon.textContent = icon;
+          els.tripStatusText.innerHTML = htmlMessage;
+        }
+
+        function calculateTripPlan() {
+          const totalDist = clamp(state.tripDistanceKm, 0, 5000, 220);
+          const startPct = clamp(state.tripStartPct, 0, 100, 90);
+          const reservePct = clamp(state.tripReservePct, 0, 95, 20);
+          const targetPct = clamp(state.tripTargetPct, 1, 100, 100);
+          const fullChargeHrs = clamp(state.tripChargeDuration, 0.5, 24, AppConfig.fullChargeHours);
+          const ratePctPerKm = clamp(state.consumptionPctPerKm, 0.1, 5.0, AppConfig.consumptionPctPerKm);
+
+          const reserveKm = ratePctPerKm > 0 ? reservePct / ratePctPerKm : 0;
+          const usablePctPerFullLeg = Math.max(0, targetPct - reservePct);
+          const maxLegKm = ratePctPerKm > 0 ? usablePctPerFullLeg / ratePctPerKm : 0;
+          const chargeRatePctPerHr = 100 / fullChargeHrs;
+
+          if (els.tripReserveKmTag) els.tripReserveKmTag.textContent = `= ${reserveKm.toFixed(1)} km buffer`;
+          if (els.tripLegMaxTag) els.tripLegMaxTag.textContent = `${maxLegKm.toFixed(1)} km / leg`;
+          if (els.tripRateTag) els.tripRateTag.textContent = `${chargeRatePctPerHr.toFixed(1)}% / hr`;
+          if (els.tripConsumptionBadge) els.tripConsumptionBadge.textContent = `Using ${ratePctPerKm.toFixed(2)}% / km`;
+
+          // Case 1: Zero trip distance
+          if (totalDist <= 0) {
+            setTripBanner("emerald", "✅", "Enter a trip distance above 0 km to generate a charging itinerary.");
+            if (els.tripKpiGrid) els.tripKpiGrid.classList.add("hidden");
+            if (els.tripItineraryWrapper) els.tripItineraryWrapper.classList.add("hidden");
+            return;
+          }
+
+          // Case 2: Target charge <= Reserve
+          if (targetPct <= reservePct) {
+            setTripBanner(
+              "rose",
+              "⚠️",
+              `<strong>Invalid target charge:</strong> Target charge at stops (${targetPct.toFixed(0)}%) must be higher than your minimum arrival reserve (${reservePct.toFixed(0)}%).`
+            );
+            if (els.tripKpiGrid) els.tripKpiGrid.classList.add("hidden");
+            if (els.tripItineraryWrapper) els.tripItineraryWrapper.classList.add("hidden");
+            return;
+          }
+
+          // Case 3: Can complete entire trip without charging
+          const directEndPct = startPct - totalDist * ratePctPerKm;
+          if (directEndPct >= reservePct - 1e-6) {
+            const usedPct = totalDist * ratePctPerKm;
+            const arrivalPct = Math.max(0, directEndPct);
+            const arrivalKm = arrivalPct / ratePctPerKm;
+
+            setTripBanner(
+              "emerald",
+              "✅",
+              `<strong>No charging stops needed!</strong> You can ride all <strong>${totalDist.toFixed(1)} km</strong> non-stop and arrive with <strong>${arrivalPct.toFixed(1)}%</strong> battery (above your ${reservePct.toFixed(0)}% reserve).`
+            );
+
+            if (els.tripKpiGrid) els.tripKpiGrid.classList.remove("hidden");
+            if (els.tripOutStops) els.tripOutStops.textContent = "0 stops";
+            if (els.tripOutStopsSub) els.tripOutStopsSub.textContent = "1 direct leg";
+            if (els.tripOutAvgLeg) els.tripOutAvgLeg.textContent = `${totalDist.toFixed(1)} km`;
+            if (els.tripOutMaxLeg) els.tripOutMaxLeg.textContent = `Max ${maxLegKm.toFixed(1)} km/leg`;
+            if (els.tripOutChargeTime) els.tripOutChargeTime.textContent = "0h 00m";
+            if (els.tripOutChargePct) els.tripOutChargePct.textContent = "+0.0% added";
+            if (els.tripOutFinalSoc) els.tripOutFinalSoc.textContent = `${arrivalPct.toFixed(1)}%`;
+            if (els.tripOutFinalKm) els.tripOutFinalKm.textContent = `${arrivalKm.toFixed(1)} km left`;
+
+            if (els.tripItineraryWrapper && els.tripTimelineList) {
+              els.tripItineraryWrapper.classList.remove("hidden");
+              els.tripTimelineList.innerHTML = `
+                <div class="timeline-step">
+                  <div class="timeline-dot"></div>
+                  <div class="step-top">
+                    <div class="step-title">🚀 Depart Start Point</div>
+                    <span class="badge-pill">Start Battery: ${startPct.toFixed(1)}%</span>
+                  </div>
+                  <div class="step-meta-grid">
+                    <div class="step-meta-item"><span>Leg Distance</span><strong>${totalDist.toFixed(1)} km</strong></div>
+                    <div class="step-meta-item"><span>Battery Used</span><strong>-${usedPct.toFixed(1)}%</strong></div>
+                    <div class="step-meta-item"><span>Safety Reserve</span><strong>${reservePct.toFixed(0)}%</strong></div>
+                  </div>
+                </div>
+                <div class="timeline-step">
+                  <div class="timeline-dot finish"></div>
+                  <div class="step-top">
+                    <div class="step-title">🏁 Arrive at Destination (${totalDist.toFixed(1)} km)</div>
+                    <span class="badge-pill emerald">Arrival Battery: ${arrivalPct.toFixed(1)}%</span>
+                  </div>
+                  <div class="step-meta-grid">
+                    <div class="step-meta-item"><span>Remaining Range</span><strong>${arrivalKm.toFixed(1)} km</strong></div>
+                    <div class="step-meta-item"><span>Buffer Above Reserve</span><strong>+${(arrivalPct - reservePct).toFixed(1)}%</strong></div>
+                  </div>
+                </div>
+              `;
+            }
+            return;
+          }
+
+          // Case 4: One or more charging stops required
+          const itinerarySteps = [];
+          let totalChargeHours = 0;
+          let totalAddedPct = 0;
+          let stopCount = 0;
+          const legDistances = [];
+          let currentSoc = startPct;
+          let distanceCovered = 0;
+
+          // Pre-trip top-up if starting battery <= reserve
+          if (currentSoc <= reservePct + 1e-6) {
+            const neededTotalPct = totalDist * ratePctPerKm + reservePct;
+            const actualChargeTo = Math.min(targetPct, neededTotalPct);
+            const addedPct = Math.max(0, actualChargeTo - currentSoc);
+            const durHrs = (addedPct / 100) * fullChargeHrs;
+
+            stopCount += 1;
+            totalChargeHours += durHrs;
+            totalAddedPct += addedPct;
+
+            itinerarySteps.push({
+              type: "charge",
+              stopNum: stopCount,
+              atKm: 0,
+              arrivalSoc: currentSoc,
+              departSoc: actualChargeTo,
+              addedPct: addedPct,
+              durationHrs: durHrs,
+              cumChargeHrs: totalChargeHours,
+              note: "Pre-trip charge required (starting battery ≤ safety reserve)"
+            });
+
+            currentSoc = actualChargeTo;
+          }
+
+          // Calculate minimum number of en-route charging stops needed from currentSoc
+          const firstLegMaxKm = Math.max(0, (currentSoc - reservePct) / ratePctPerKm);
+          const remainingAfterFirst = Math.max(0, totalDist - firstLegMaxKm);
+          const enRouteStops = maxLegKm > 0 ? Math.ceil(remainingAfterFirst / maxLegKm) : 0;
+          const totalLegs = enRouteStops + 1;
+
+          // Determine planned leg distances
+          if (state.tripStrategy === "balanced" && enRouteStops > 0) {
+            // Balance legs evenly while ensuring leg 1 never exceeds firstLegMaxKm and subsequent legs <= maxLegKm
+            const idealBalancedKm = totalDist / totalLegs;
+            if (idealBalancedKm <= firstLegMaxKm + 1e-6 && idealBalancedKm <= maxLegKm + 1e-6) {
+              for (let i = 0; i < totalLegs; i++) {
+                legDistances.push(idealBalancedKm);
+              }
+            } else {
+              // Leg 1 uses firstLegMaxKm, remaining distance split evenly across remaining legs
+              legDistances.push(firstLegMaxKm);
+              const remDist = totalDist - firstLegMaxKm;
+              const remLegs = totalLegs - 1;
+              for (let i = 0; i < remLegs; i++) {
+                legDistances.push(remDist / remLegs);
+              }
+            }
+          } else {
+            // Max distance per leg strategy
+            let remDist = totalDist;
+            let first = true;
+            while (remDist > 1e-6) {
+              const capKm = first ? firstLegMaxKm : maxLegKm;
+              const stepKm = Math.min(remDist, capKm);
+              legDistances.push(stepKm);
+              remDist -= stepKm;
+              first = false;
+            }
+          }
+
+          // Simulate each riding leg and intermediate charging stop
+          for (let i = 0; i < legDistances.length; i++) {
+            const legKm = legDistances[i];
+            const usedPct = legKm * ratePctPerKm;
+            const startLegSoc = currentSoc;
+            const endLegSoc = Math.max(reservePct, startLegSoc - usedPct);
+            distanceCovered += legKm;
+
+            itinerarySteps.push({
+              type: "ride",
+              legNum: i + 1,
+              fromKm: distanceCovered - legKm,
+              toKm: distanceCovered,
+              legKm: legKm,
+              startSoc: startLegSoc,
+              endSoc: endLegSoc,
+              usedPct: usedPct
+            });
+
+            currentSoc = endLegSoc;
+
+            // If not the final leg, insert a charging stop
+            if (i < legDistances.length - 1) {
+              const remainingDistAfterStop = totalDist - distanceCovered;
+              const pctNeededToFinish = remainingDistAfterStop * ratePctPerKm + reservePct;
+              const desiredDepartSoc = Math.min(targetPct, Math.max(currentSoc, pctNeededToFinish));
+              const addedPct = Math.max(0, desiredDepartSoc - currentSoc);
+              const durHrs = (addedPct / 100) * fullChargeHrs;
+
+              stopCount += 1;
+              totalChargeHours += durHrs;
+              totalAddedPct += addedPct;
+
+              itinerarySteps.push({
+                type: "charge",
+                stopNum: stopCount,
+                atKm: distanceCovered,
+                arrivalSoc: currentSoc,
+                departSoc: desiredDepartSoc,
+                addedPct: addedPct,
+                durationHrs: durHrs,
+                cumChargeHrs: totalChargeHours,
+                note:
+                  desiredDepartSoc < targetPct - 0.1
+                    ? `Smart top-up to ${desiredDepartSoc.toFixed(0)}% (enough to finish with ${reservePct.toFixed(0)}% reserve)`
+                    : `Charge to ${desiredDepartSoc.toFixed(0)}% target`
+              });
+
+              currentSoc = desiredDepartSoc;
+            }
+          }
+
+          const finalArrivalKm = currentSoc / ratePctPerKm;
+          const avgLegKm = legDistances.length > 0 ? totalDist / legDistances.length : totalDist;
+
+          setTripBanner(
+            "amber",
+            "⚡",
+            `<strong>${stopCount} charging ${stopCount === 1 ? "stop" : "stops"} planned</strong> across <strong>${legDistances.length} riding ${legDistances.length === 1 ? "leg" : "legs"}</strong>. Total charging time: <strong>${formatHoursMinutes(totalChargeHours)}</strong>, keeping battery at or above <strong>${reservePct.toFixed(0)}%</strong> at all times.`
+          );
+
+          if (els.tripKpiGrid) els.tripKpiGrid.classList.remove("hidden");
+          if (els.tripOutStops) els.tripOutStops.textContent = `${stopCount} ${stopCount === 1 ? "stop" : "stops"}`;
+          if (els.tripOutStopsSub) els.tripOutStopsSub.textContent = `${legDistances.length} riding legs`;
+          if (els.tripOutAvgLeg) els.tripOutAvgLeg.textContent = `${avgLegKm.toFixed(1)} km`;
+          if (els.tripOutMaxLeg) els.tripOutMaxLeg.textContent = `Max ${maxLegKm.toFixed(1)} km/leg`;
+          if (els.tripOutChargeTime) els.tripOutChargeTime.textContent = formatHoursMinutes(totalChargeHours);
+          if (els.tripOutChargePct) els.tripOutChargePct.textContent = `+${totalAddedPct.toFixed(1)}% added`;
+          if (els.tripOutFinalSoc) els.tripOutFinalSoc.textContent = `${currentSoc.toFixed(1)}%`;
+          if (els.tripOutFinalKm) els.tripOutFinalKm.textContent = `${finalArrivalKm.toFixed(1)} km left`;
+
+          if (els.tripItineraryWrapper && els.tripTimelineList) {
+            els.tripItineraryWrapper.classList.remove("hidden");
+            const htmlParts = [];
+
+            itinerarySteps.forEach((step) => {
+              if (step.type === "ride") {
+                htmlParts.push(`
+                  <div class="timeline-step">
+                    <div class="timeline-dot"></div>
+                    <div class="step-top">
+                      <div class="step-title">🛵 Leg ${step.legNum}: ${step.fromKm.toFixed(1)} km → ${step.toKm.toFixed(1)} km</div>
+                      <span class="badge-pill tabular">${step.legKm.toFixed(1)} km</span>
+                    </div>
+                    <div class="step-meta-grid">
+                      <div class="step-meta-item"><span>Start Leg SOC</span><strong>${step.startSoc.toFixed(1)}%</strong></div>
+                      <div class="step-meta-item"><span>End Leg SOC</span><strong>${step.endSoc.toFixed(1)}%</strong></div>
+                      <div class="step-meta-item"><span>Energy Used</span><strong>-${step.usedPct.toFixed(1)}%</strong></div>
+                    </div>
+                  </div>
+                `);
+              } else if (step.type === "charge") {
+                htmlParts.push(`
+                  <div class="timeline-step">
+                    <div class="timeline-dot charge"></div>
+                    <div class="step-top">
+                      <div class="step-title">⚡ Charging Stop #${step.stopNum} (at ${step.atKm.toFixed(1)} km)</div>
+                      <span class="badge-pill amber tabular">${formatHoursMinutes(step.durationHrs)}</span>
+                    </div>
+                    <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 0.35rem;">${step.note}</p>
+                    <div class="step-meta-grid">
+                      <div class="step-meta-item"><span>Arrival → Depart</span><strong>${step.arrivalSoc.toFixed(1)}% → ${step.departSoc.toFixed(1)}%</strong></div>
+                      <div class="step-meta-item"><span>Charge Added</span><strong>+${step.addedPct.toFixed(1)}%</strong></div>
+                      <div class="step-meta-item"><span>Stop Duration</span><strong>${formatHoursMinutes(step.durationHrs)}</strong></div>
+                    </div>
+                  </div>
+                `);
+              }
+            });
+
+            htmlParts.push(`
+              <div class="timeline-step">
+                <div class="timeline-dot finish"></div>
+                <div class="step-top">
+                  <div class="step-title">🏁 Destination Reached (${totalDist.toFixed(1)} km)</div>
+                  <span class="badge-pill emerald tabular">Final Battery: ${currentSoc.toFixed(1)}%</span>
+                </div>
+                <div class="step-meta-grid">
+                  <div class="step-meta-item"><span>Total Distance</span><strong>${totalDist.toFixed(1)} km</strong></div>
+                  <div class="step-meta-item"><span>Total Charging Time</span><strong>${formatHoursMinutes(totalChargeHours)}</strong></div>
+                  <div class="step-meta-item"><span>Remaining Range</span><strong>${finalArrivalKm.toFixed(1)} km</strong></div>
+                </div>
+              </div>
+            `);
+
+            els.tripTimelineList.innerHTML = htmlParts.join("");
+          }
+        }
+
+        function syncInputsToUI() {
+          if (els.rideStartSlider) els.rideStartSlider.value = state.rideStartPct;
+          if (els.rideStartPct) els.rideStartPct.value = state.rideStartPct;
+          if (els.rideDistSlider) els.rideDistSlider.value = Math.min(150, state.rideDistanceKm);
+          if (els.rideDistanceKm) els.rideDistanceKm.value = state.rideDistanceKm;
+          if (els.rideConsumptionPct) els.rideConsumptionPct.value = state.consumptionPctPerKm.toFixed(2);
+
+          if (els.tripDistanceKm) els.tripDistanceKm.value = state.tripDistanceKm;
+          if (els.tripStartSlider) els.tripStartSlider.value = state.tripStartPct;
+          if (els.tripStartPct) els.tripStartPct.value = state.tripStartPct;
+          if (els.tripReserveSlider) els.tripReserveSlider.value = state.tripReservePct;
+          if (els.tripReservePct) els.tripReservePct.value = state.tripReservePct;
+          if (els.tripTargetPct) els.tripTargetPct.value = state.tripTargetPct;
+          if (els.tripChargeDuration) els.tripChargeDuration.value = state.tripChargeDuration.toFixed(1);
+
+          updatePresetHighlights();
+
+          els.tripStrategyBtns.forEach((btn) => {
+            btn.classList.toggle("active", btn.getAttribute("data-strategy") === state.tripStrategy);
+          });
+        }
+
+        function setRideStartPct(val) {
+          state.rideStartPct = clamp(Math.round(val), 0, 100, 85);
+          if (els.rideStartSlider) els.rideStartSlider.value = state.rideStartPct;
+          if (els.rideStartPct) els.rideStartPct.value = state.rideStartPct;
+          updatePresetHighlights();
+          calculateSingleRide();
+        }
+
+        function setRideDistanceKm(val) {
+          state.rideDistanceKm = clamp(val, 0, 5000, 35);
+          if (els.rideDistSlider) els.rideDistSlider.value = Math.min(150, state.rideDistanceKm);
+          if (els.rideDistanceKm) els.rideDistanceKm.value = state.rideDistanceKm;
+          updatePresetHighlights();
+          calculateSingleRide();
+        }
+
+        function setTripStartPct(val) {
+          state.tripStartPct = clamp(Math.round(val), 0, 100, 90);
+          if (els.tripStartSlider) els.tripStartSlider.value = state.tripStartPct;
+          if (els.tripStartPct) els.tripStartPct.value = state.tripStartPct;
+          updatePresetHighlights();
+          calculateTripPlan();
+        }
+
+        function setTripReservePct(val) {
+          state.tripReservePct = clamp(Math.round(val), 0, 80, 20);
+          if (els.tripReserveSlider) els.tripReserveSlider.value = state.tripReservePct;
+          if (els.tripReservePct) els.tripReservePct.value = state.tripReservePct;
+          updatePresetHighlights();
+          calculateTripPlan();
+        }
+
+        function bindEvents() {
+          // Single Ride Starting Battery (Slider + Number + Presets)
+          if (els.rideStartSlider) {
+            els.rideStartSlider.addEventListener("input", () => setRideStartPct(els.rideStartSlider.value));
+          }
+          if (els.rideStartPct) {
+            els.rideStartPct.addEventListener("input", () => {
+              state.rideStartPct = clamp(els.rideStartPct.value, 0, 100, 0);
+              if (els.rideStartSlider) els.rideStartSlider.value = state.rideStartPct;
+              updatePresetHighlights();
+              calculateSingleRide();
+            });
+            els.rideStartPct.addEventListener("blur", () => setRideStartPct(state.rideStartPct));
+          }
+          els.rideStartPresetBtns.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const val = parseFloat(btn.getAttribute("data-ride-start-val"));
+              if (Number.isFinite(val)) setRideStartPct(val);
+            });
+          });
+
+          // Single Ride Distance (Slider + Number + Presets)
+          if (els.rideDistSlider) {
+            els.rideDistSlider.addEventListener("input", () => setRideDistanceKm(els.rideDistSlider.value));
+          }
+          if (els.rideDistanceKm) {
+            els.rideDistanceKm.addEventListener("input", () => {
+              state.rideDistanceKm = clamp(els.rideDistanceKm.value, 0, 5000, 0);
+              if (els.rideDistSlider) els.rideDistSlider.value = Math.min(150, state.rideDistanceKm);
+              updatePresetHighlights();
+              calculateSingleRide();
+            });
+            els.rideDistanceKm.addEventListener("blur", () => setRideDistanceKm(state.rideDistanceKm));
+          }
+          els.rideDistPresetBtns.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const val = parseFloat(btn.getAttribute("data-ride-dist-val"));
+              if (Number.isFinite(val)) setRideDistanceKm(val);
+            });
+          });
+
+          // Consumption rate & presets
+          if (els.rideConsumptionPct) {
+            els.rideConsumptionPct.addEventListener("input", () => {
+              state.consumptionPctPerKm = clamp(els.rideConsumptionPct.value, 0.1, 5.0, AppConfig.consumptionPctPerKm);
+              updatePresetHighlights();
+              calculateSingleRide();
+              calculateTripPlan();
+            });
+            els.rideConsumptionPct.addEventListener("blur", () => {
+              els.rideConsumptionPct.value = state.consumptionPctPerKm.toFixed(2);
+            });
+          }
+
+          els.ridePresetBtns.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const rate = parseFloat(btn.getAttribute("data-rate"));
+              if (Number.isFinite(rate)) {
+                state.consumptionPctPerKm = rate;
+                if (els.rideConsumptionPct) els.rideConsumptionPct.value = rate.toFixed(2);
+                updatePresetHighlights();
+                calculateSingleRide();
+                calculateTripPlan();
+              }
+            });
+          });
+
+          if (els.rideResetBtn) {
+            els.rideResetBtn.addEventListener("click", () => {
+              state.rideStartPct = 85;
+              state.rideDistanceKm = 35;
+              state.consumptionPctPerKm = AppConfig.consumptionPctPerKm;
+              syncInputsToUI();
+              calculateSingleRide();
+              calculateTripPlan();
+            });
+          }
+
+          // Trip Planner inputs
+          if (els.tripDistanceKm) {
+            els.tripDistanceKm.addEventListener("input", () => {
+              state.tripDistanceKm = clamp(els.tripDistanceKm.value, 0, 5000, 0);
+              calculateTripPlan();
+            });
+            els.tripDistanceKm.addEventListener("blur", () => {
+              els.tripDistanceKm.value = state.tripDistanceKm;
+            });
+          }
+
+          if (els.tripStartSlider) {
+            els.tripStartSlider.addEventListener("input", () => setTripStartPct(els.tripStartSlider.value));
+          }
+          if (els.tripStartPct) {
+            els.tripStartPct.addEventListener("input", () => {
+              state.tripStartPct = clamp(els.tripStartPct.value, 0, 100, 0);
+              if (els.tripStartSlider) els.tripStartSlider.value = state.tripStartPct;
+              updatePresetHighlights();
+              calculateTripPlan();
+            });
+            els.tripStartPct.addEventListener("blur", () => setTripStartPct(state.tripStartPct));
+          }
+          els.tripStartPresetBtns.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const val = parseFloat(btn.getAttribute("data-trip-start-val"));
+              if (Number.isFinite(val)) setTripStartPct(val);
+            });
+          });
+
+          if (els.tripSyncStartBtn) {
+            els.tripSyncStartBtn.addEventListener("click", () => setTripStartPct(state.rideStartPct));
+          }
+
+          if (els.tripReserveSlider) {
+            els.tripReserveSlider.addEventListener("input", () => setTripReservePct(els.tripReserveSlider.value));
+          }
+          if (els.tripReservePct) {
+            els.tripReservePct.addEventListener("input", () => {
+              state.tripReservePct = clamp(els.tripReservePct.value, 0, 80, 20);
+              if (els.tripReserveSlider) els.tripReserveSlider.value = state.tripReservePct;
+              updatePresetHighlights();
+              calculateTripPlan();
+            });
+            els.tripReservePct.addEventListener("blur", () => setTripReservePct(state.tripReservePct));
+          }
+          els.tripReservePresetBtns.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const val = parseFloat(btn.getAttribute("data-trip-reserve-val"));
+              if (Number.isFinite(val)) setTripReservePct(val);
+            });
+          });
+
+          if (els.tripTargetPct) {
+            els.tripTargetPct.addEventListener("input", () => {
+              state.tripTargetPct = clamp(els.tripTargetPct.value, 1, 100, 100);
+              calculateTripPlan();
+            });
+            els.tripTargetPct.addEventListener("blur", () => {
+              els.tripTargetPct.value = state.tripTargetPct;
+            });
+          }
+
+          if (els.tripChargeDuration) {
+            els.tripChargeDuration.addEventListener("input", () => {
+              state.tripChargeDuration = clamp(els.tripChargeDuration.value, 0.5, 24, AppConfig.fullChargeHours);
+              calculateTripPlan();
+            });
+            els.tripChargeDuration.addEventListener("blur", () => {
+              els.tripChargeDuration.value = state.tripChargeDuration.toFixed(1);
+            });
+          }
+
+          els.tripStrategyBtns.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              state.tripStrategy = btn.getAttribute("data-strategy") || "balanced";
+              els.tripStrategyBtns.forEach((b) => b.classList.toggle("active", b === btn));
+              calculateTripPlan();
+            });
+          });
+
+          if (els.tripResetBtn) {
+            els.tripResetBtn.addEventListener("click", () => {
+              state.tripDistanceKm = 220;
+              state.tripStartPct = 90;
+              state.tripReservePct = 20;
+              state.tripTargetPct = 100;
+              state.tripChargeDuration = AppConfig.fullChargeHours;
+              state.tripStrategy = "balanced";
+              syncInputsToUI();
+              calculateTripPlan();
+            });
+          }
+
+          onConfigChange((cfg) => {
+            state.consumptionPctPerKm = cfg.consumptionPctPerKm;
+            state.tripChargeDuration = cfg.fullChargeHours;
+            syncInputsToUI();
+            calculateSingleRide();
+            calculateTripPlan();
+          });
+        }
+
+        function getStateSnapshot() {
+          return {
+            rideStartPct: state.rideStartPct,
+            rideDistanceKm: state.rideDistanceKm,
+            consumptionPctPerKm: state.consumptionPctPerKm,
+            tripDistanceKm: state.tripDistanceKm,
+            tripStartPct: state.tripStartPct,
+            tripReservePct: state.tripReservePct,
+            tripTargetPct: state.tripTargetPct,
+            tripChargeDuration: state.tripChargeDuration,
+            tripStrategy: state.tripStrategy
+          };
+        }
+
+        function applySavedState(saved) {
+          if (!saved || typeof saved !== "object") return;
+          state.rideStartPct = clamp(saved.rideStartPct, 0, 100, 85);
+          state.rideDistanceKm = clamp(saved.rideDistanceKm, 0, 5000, 35);
+          state.consumptionPctPerKm = clamp(saved.consumptionPctPerKm, 0.1, 5.0, AppConfig.consumptionPctPerKm);
+
+          state.tripDistanceKm = clamp(saved.tripDistanceKm, 0, 5000, 220);
+          state.tripStartPct = clamp(saved.tripStartPct, 0, 100, 90);
+          state.tripReservePct = clamp(saved.tripReservePct, 0, 80, 20);
+          state.tripTargetPct = clamp(saved.tripTargetPct, 1, 100, 100);
+          state.tripChargeDuration = clamp(saved.tripChargeDuration, 0.5, 24, AppConfig.fullChargeHours);
+          state.tripStrategy = saved.tripStrategy === "max" ? "max" : "balanced";
+        }
+
+        function resetDefaults() {
+          state.rideStartPct = 85;
+          state.rideDistanceKm = 35;
+          state.consumptionPctPerKm = FACTORY_DEFAULTS.consumptionPctPerKm;
+          state.tripDistanceKm = 220;
+          state.tripStartPct = 90;
+          state.tripReservePct = 20;
+          state.tripTargetPct = 100;
+          state.tripChargeDuration = FACTORY_DEFAULTS.fullChargeHours;
+          state.tripStrategy = "balanced";
+          syncInputsToUI();
+          calculateSingleRide();
+          calculateTripPlan();
+        }
+
+        function init(savedState) {
+          if (savedState) {
+            applySavedState(savedState);
+          }
+          syncInputsToUI();
+          bindEvents();
+          calculateSingleRide();
+          calculateTripPlan();
+        }
+
+        return { init, getStateSnapshot, resetDefaults };
+      })();
+
+      /* ======================================================================
+         4. PAGE 2 MODULE: INDEPENDENT CHARGING CALCULATOR
+         Strictly scoped to #page-charge elements (#calc-...)
+         ====================================================================== */
+      const ChargingCalculatorModule = (function () {
+        const root = document.getElementById("page-charge");
+        if (!root) return { init: function () {} };
+
+        const q = (selector) => root.querySelector(selector);
+
+        const els = {
+          currentSlider: q("#calc-current-slider"),
+          currentPct: q("#calc-current-pct"),
+          currPresetBtns: root.querySelectorAll("[data-calc-curr-val]"),
+          currentKwhTag: q("#calc-current-kwh-tag"),
+
+          targetSlider: q("#calc-target-slider"),
+          targetPct: q("#calc-target-pct"),
+          targPresetBtns: root.querySelectorAll("[data-calc-targ-val]"),
+          full100Btn: q("#calc-full100-btn"),
+
+          fullDuration: q("#calc-full-duration"),
+          startDatetime: q("#calc-start-datetime"),
+          nowBtn: q("#calc-now-btn"),
+          resetBtn: q("#calc-reset-btn"),
+
+          infoBanner: q("#calc-info-banner"),
+          infoText: q("#calc-info-text"),
+
+          outFinishMain: q("#calc-out-finish-main"),
+          outFinishSub: q("#calc-out-finish-sub"),
+          barExisting: q("#calc-bar-existing"),
+          barAdded: q("#calc-bar-added"),
+          legendCurr: q("#calc-legend-curr"),
+          legendAdd: q("#calc-legend-add"),
+          legendTarget: q("#calc-legend-target"),
+
+          // Live Charging Progress Elements
+          liveDot: q("#calc-live-dot"),
+          liveStatusBadge: q("#calc-live-status-badge"),
+          liveElapsedLabel: q("#calc-live-elapsed-label"),
+          liveElapsedHms: q("#calc-live-elapsed-hms"),
+          liveElapsedSub: q("#calc-live-elapsed-sub"),
+          liveEstSoc: q("#calc-live-est-soc"),
+          liveGainedSub: q("#calc-live-gained-sub"),
+          liveRemLabel: q("#calc-live-rem-label"),
+          liveRemHms: q("#calc-live-rem-hms"),
+          liveRemSub: q("#calc-live-rem-sub"),
+          liveBarStart: q("#calc-live-bar-start"),
+          liveBarGained: q("#calc-live-bar-gained"),
+          liveBarRemaining: q("#calc-live-bar-remaining"),
+          liveLegStart: q("#calc-live-leg-start"),
+          liveLegGained: q("#calc-live-leg-gained"),
+          liveLegLeft: q("#calc-live-leg-left"),
+          liveClockNote: q("#calc-live-clock-note"),
+          applyLiveSocBtn: q("#calc-apply-live-soc-btn"),
+
+          outDurationHm: q("#calc-out-duration-hm"),
+          outDurationDec: q("#calc-out-duration-dec"),
+          outEnergyKwh: q("#calc-out-energy-kwh"),
+          outEnergyWh: q("#calc-out-energy-wh"),
+          outRatePct: q("#calc-out-rate-pct"),
+          outRateW: q("#calc-out-rate-w"),
+          outRangeAdded: q("#calc-out-range-added"),
+          outRangeTotal: q("#calc-out-range-total")
+        };
+
+        const state = {
+          currentPct: 25,
+          targetPct: 100,
+          fullDurationHours: 5.0,
+          startDatetimeStr: toLocalDateTimeInputString(new Date()),
+          latestEstimatedLiveSoc: 25.0,
+          tickIntervalId: null
+        };
+
+        function formatDurationHMS(totalSeconds) {
+          const safeSec = Math.max(0, Math.floor(totalSeconds));
+          const hours = Math.floor(safeSec / 3600);
+          const minutes = Math.floor((safeSec % 3600) / 60);
+          const seconds = safeSec % 60;
+          const pad = (n) => String(n).padStart(2, "0");
+          return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+        }
+
+        function formatFriendlyDateTime(dateObj) {
+          if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+            return "Invalid date/time";
+          }
+          const timeStr = dateObj.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+          const dateStr = dateObj.toLocaleDateString([], {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            year: "numeric"
+          });
+          return `${timeStr} • ${dateStr}`;
+        }
+
+        function updatePresetHighlights() {
+          els.currPresetBtns.forEach((btn) => {
+            const val = parseFloat(btn.getAttribute("data-calc-curr-val"));
+            btn.classList.toggle("active", Math.abs(val - state.currentPct) < 0.1);
+          });
+          els.targPresetBtns.forEach((btn) => {
+            const val = parseFloat(btn.getAttribute("data-calc-targ-val"));
+            btn.classList.toggle("active", Math.abs(val - state.targetPct) < 0.1);
+          });
+        }
+
+        function calculate() {
+          const capKwh = AppConfig.batteryKwh;
+          const ratePctPerKm = AppConfig.consumptionPctPerKm;
+          const currPct = clamp(state.currentPct, 0, 100, 25);
+          const targPct = clamp(state.targetPct, 1, 100, 100);
+          const fullHrs = clamp(state.fullDurationHours, 0.5, 24, 5.0);
+
+          const storedKwh = (currPct / 100) * capKwh;
+          if (els.currentKwhTag) {
+            els.currentKwhTag.textContent = `${storedKwh.toFixed(2)} kWh stored`;
+          }
+
+          const deltaPct = Math.max(0, targPct - currPct);
+          // Formula: Charging time = (target - current) / 100 * full charging duration
+          const chargeHours = (deltaPct / 100) * fullHrs;
+          const energyRequiredKwh = (deltaPct / 100) * capKwh;
+          const energyRequiredWh = energyRequiredKwh * 1000;
+
+          const avgRatePctPerHr = 100 / fullHrs;
+          const avgEffectiveWatts = (capKwh * 1000) / fullHrs;
+
+          const rangeAddedKm = ratePctPerKm > 0 ? deltaPct / ratePctPerKm : 0;
+          const rangeAtTargetKm = ratePctPerKm > 0 ? targPct / ratePctPerKm : 0;
+
+          // Info banner if already at or above target
+          if (els.infoBanner && els.infoText) {
+            if (currPct >= targPct) {
+              els.infoBanner.classList.remove("hidden");
+              els.infoText.innerHTML =
+                currPct >= 100
+                  ? "<strong>Battery is already at 100%!</strong> No charging time is required."
+                  : `<strong>Starting battery (${currPct.toFixed(0)}%) is already at or above target (${targPct.toFixed(0)}%).</strong> Increase target to 100% if you want a full charge.`;
+            } else {
+              els.infoBanner.classList.add("hidden");
+            }
+          }
+
+          // Parse start datetime
+          const startDate = state.startDatetimeStr ? new Date(state.startDatetimeStr) : new Date();
+          const hasValidStart = startDate instanceof Date && !isNaN(startDate.getTime());
+
+          if (hasValidStart) {
+            const finishDate = new Date(startDate.getTime() + chargeHours * 3600 * 1000);
+            if (els.outFinishMain) {
+              els.outFinishMain.textContent = formatFriendlyDateTime(finishDate);
+            }
+            if (els.outFinishSub) {
+              els.outFinishSub.textContent = `Starts ${formatFriendlyDateTime(startDate)} (+${formatHoursMinutes(chargeHours)})`;
+            }
+          } else {
+            if (els.outFinishMain) els.outFinishMain.textContent = "Select valid start time";
+            if (els.outFinishSub) els.outFinishSub.textContent = "Use the button above to load current local time";
+          }
+
+          // Stacked visual bar
+          if (els.barExisting) els.barExisting.style.width = `${Math.min(100, currPct)}%`;
+          if (els.barAdded) els.barAdded.style.width = `${Math.min(100 - currPct, deltaPct)}%`;
+          if (els.legendCurr) els.legendCurr.textContent = `${currPct.toFixed(0)}%`;
+          if (els.legendAdd) els.legendAdd.textContent = `+${deltaPct.toFixed(0)}%`;
+          if (els.legendTarget) els.legendTarget.textContent = `${targPct.toFixed(0)}%`;
+
+          // 4 KPI Outputs
+          if (els.outDurationHm) els.outDurationHm.textContent = formatHoursMinutes(chargeHours);
+          if (els.outDurationDec) els.outDurationDec.textContent = `${chargeHours.toFixed(2)} hours`;
+          if (els.outEnergyKwh) els.outEnergyKwh.textContent = `${energyRequiredKwh.toFixed(2)} kWh`;
+          if (els.outEnergyWh) els.outEnergyWh.textContent = `${Math.round(energyRequiredWh).toLocaleString()} Wh into pack`;
+          if (els.outRatePct) els.outRatePct.textContent = `${avgRatePctPerHr.toFixed(1)}% / hr`;
+          if (els.outRateW) els.outRateW.textContent = `~${Math.round(avgEffectiveWatts)} W avg (${AppConfig.chargerRatedWatts} W max)`;
+          if (els.outRangeAdded) els.outRangeAdded.textContent = `+${rangeAddedKm.toFixed(1)} km`;
+          if (els.outRangeTotal) els.outRangeTotal.textContent = `${rangeAtTargetKm.toFixed(1)} km at target`;
+
+          updateLiveProgress();
+        }
+
+        function updateLiveProgress() {
+          const capKwh = AppConfig.batteryKwh;
+          const startSoc = clamp(state.currentPct, 0, 100, 25);
+          const targetSoc = clamp(state.targetPct, 1, 100, 100);
+          const fullHrs = clamp(state.fullDurationHours, 0.5, 24, 5.0);
+
+          const startDate = state.startDatetimeStr ? new Date(state.startDatetimeStr) : new Date();
+          const hasValidStart = startDate instanceof Date && !isNaN(startDate.getTime());
+          const now = new Date();
+
+          if (els.liveClockNote) {
+            els.liveClockNote.textContent = `Device clock: ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+          }
+
+          if (!hasValidStart) {
+            if (els.liveStatusBadge) {
+              els.liveStatusBadge.className = "badge-pill amber tabular";
+              els.liveStatusBadge.textContent = "Set valid start time";
+            }
+            if (els.liveElapsedHms) els.liveElapsedHms.textContent = "00:00:00";
+            if (els.liveEstSoc) els.liveEstSoc.textContent = `${startSoc.toFixed(1)}%`;
+            return;
+          }
+
+          const deltaNeededPct = Math.max(0, targetSoc - startSoc);
+          const totalChargeMs = (deltaNeededPct / 100) * fullHrs * 3600 * 1000;
+          const finishMs = startDate.getTime() + totalChargeMs;
+          const nowMs = now.getTime();
+          const startMs = startDate.getTime();
+
+          const pctPerHour = 100 / fullHrs;
+
+          let elapsedMs = 0;
+          let remainingMs = totalChargeMs;
+          let estimatedSoc = startSoc;
+          let statusMode = "active";
+
+          if (startSoc >= targetSoc || deltaNeededPct <= 0) {
+            statusMode = "complete";
+            elapsedMs = Math.max(0, nowMs - startMs);
+            remainingMs = 0;
+            estimatedSoc = startSoc;
+          } else if (nowMs < startMs) {
+            statusMode = "scheduled";
+            elapsedMs = 0;
+            remainingMs = totalChargeMs;
+            estimatedSoc = startSoc;
+          } else if (nowMs >= finishMs) {
+            statusMode = "complete";
+            elapsedMs = totalChargeMs;
+            remainingMs = 0;
+            estimatedSoc = Math.min(100, targetSoc);
+          } else {
+            statusMode = "active";
+            elapsedMs = nowMs - startMs;
+            remainingMs = Math.max(0, finishMs - nowMs);
+            const elapsedHours = elapsedMs / (3600 * 1000);
+            estimatedSoc = clamp(startSoc + elapsedHours * pctPerHour, startSoc, Math.min(100, targetSoc), startSoc);
+          }
+
+          state.latestEstimatedLiveSoc = estimatedSoc;
+
+          const gainedPct = Math.max(0, estimatedSoc - startSoc);
+          const gainedKwh = (gainedPct / 100) * capKwh;
+          const remainingPctToTarget = Math.max(0, targetSoc - estimatedSoc);
+
+          if (els.liveStatusBadge && els.liveDot) {
+            if (statusMode === "scheduled") {
+              const untilStartSec = Math.max(0, Math.ceil((startMs - nowMs) / 1000));
+              els.liveStatusBadge.className = "badge-pill amber tabular";
+              els.liveStatusBadge.textContent = `Scheduled • Starts in ${formatDurationHMS(untilStartSec)}`;
+              els.liveDot.className = "live-pulse-dot amber";
+            } else if (statusMode === "complete") {
+              els.liveStatusBadge.className = "badge-pill tabular";
+              els.liveStatusBadge.textContent = targetSoc >= 100 ? "Fully Charged (100%)" : `Target Reached (${targetSoc.toFixed(0)}%)`;
+              els.liveDot.className = "live-pulse-dot static";
+            } else {
+              els.liveStatusBadge.className = "badge-pill emerald tabular";
+              els.liveStatusBadge.textContent = "Charging in progress";
+              els.liveDot.className = "live-pulse-dot";
+            }
+          }
+
+          if (els.liveElapsedLabel && els.liveElapsedHms && els.liveElapsedSub) {
+            if (statusMode === "scheduled") {
+              const waitSec = Math.max(0, Math.ceil((startMs - nowMs) / 1000));
+              els.liveElapsedLabel.textContent = "Starts In (Countdown)";
+              els.liveElapsedHms.textContent = formatDurationHMS(waitSec);
+              els.liveElapsedSub.textContent = "Elapsed: 00:00:00 (not started yet)";
+            } else if (statusMode === "complete") {
+              const totalSec = Math.floor(elapsedMs / 1000);
+              const totalSinceStartSec = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+              els.liveElapsedLabel.textContent = "Active Charge Duration";
+              els.liveElapsedHms.textContent = formatDurationHMS(totalSec);
+              els.liveElapsedSub.textContent = `Plugged in ${formatHoursMinutes(totalSinceStartSec / 3600)} ago`;
+            } else {
+              const elapsedSec = Math.floor(elapsedMs / 1000);
+              els.liveElapsedLabel.textContent = "Elapsed Charging Time";
+              els.liveElapsedHms.textContent = formatDurationHMS(elapsedSec);
+              els.liveElapsedSub.textContent = `${formatHoursMinutes(elapsedSec / 3600)} since plug-in`;
+            }
+          }
+
+          if (els.liveEstSoc) els.liveEstSoc.textContent = `${estimatedSoc.toFixed(1)}%`;
+          if (els.liveGainedSub) {
+            els.liveGainedSub.textContent = `+${gainedPct.toFixed(1)}% (+${gainedKwh.toFixed(2)} kWh) gained so far`;
+          }
+
+          if (els.liveRemLabel && els.liveRemHms && els.liveRemSub) {
+            els.liveRemLabel.textContent = `Live Remaining to ${targetSoc.toFixed(0)}%`;
+            els.liveRemHms.textContent = formatDurationHMS(Math.ceil(remainingMs / 1000));
+            els.liveRemSub.textContent = `${remainingPctToTarget.toFixed(1)}% remaining to ${targetSoc.toFixed(0)}%`;
+          }
+
+          const barStartWidth = Math.min(100, startSoc);
+          const barGainedWidth = Math.min(100 - barStartWidth, gainedPct);
+          const barRemWidth = Math.min(100 - barStartWidth - barGainedWidth, remainingPctToTarget);
+
+          if (els.liveBarStart) els.liveBarStart.style.width = `${barStartWidth}%`;
+          if (els.liveBarGained) els.liveBarGained.style.width = `${barGainedWidth}%`;
+          if (els.liveBarRemaining) els.liveBarRemaining.style.width = `${barRemWidth}%`;
+
+          if (els.liveLegStart) els.liveLegStart.textContent = `${startSoc.toFixed(0)}%`;
+          if (els.liveLegGained) els.liveLegGained.textContent = `+${gainedPct.toFixed(1)}%`;
+          if (els.liveLegLeft) els.liveLegLeft.textContent = `${remainingPctToTarget.toFixed(1)}%`;
+        }
+
+        function startLiveTicker() {
+          if (state.tickIntervalId !== null) {
+            clearInterval(state.tickIntervalId);
+          }
+          state.tickIntervalId = window.setInterval(updateLiveProgress, 1000);
+        }
+
+        function syncInputsToUI() {
+          if (els.currentSlider) els.currentSlider.value = state.currentPct;
+          if (els.currentPct) els.currentPct.value = state.currentPct;
+          if (els.targetSlider) els.targetSlider.value = state.targetPct;
+          if (els.targetPct) els.targetPct.value = state.targetPct;
+          if (els.fullDuration) els.fullDuration.value = state.fullDurationHours.toFixed(1);
+          if (els.startDatetime) els.startDatetime.value = state.startDatetimeStr;
+          updatePresetHighlights();
+        }
+
+        function setCurrentPct(val) {
+          state.currentPct = clamp(Math.round(val), 0, 100, 25);
+          if (els.currentSlider) els.currentSlider.value = state.currentPct;
+          if (els.currentPct) els.currentPct.value = state.currentPct;
+          updatePresetHighlights();
+          calculate();
+        }
+
+        function setTargetPct(val) {
+          state.targetPct = clamp(Math.round(val), 1, 100, 100);
+          if (els.targetSlider) els.targetSlider.value = state.targetPct;
+          if (els.targetPct) els.targetPct.value = state.targetPct;
+          updatePresetHighlights();
+          calculate();
+        }
+
+        function setStartToCurrentTime() {
+          state.startDatetimeStr = toLocalDateTimeInputString(new Date());
+          if (els.startDatetime) els.startDatetime.value = state.startDatetimeStr;
+          calculate();
+        }
+
+        function bindEvents() {
+          // Starting battery (Slider + Number + Presets)
+          if (els.currentSlider) {
+            els.currentSlider.addEventListener("input", () => setCurrentPct(els.currentSlider.value));
+          }
+          if (els.currentPct) {
+            els.currentPct.addEventListener("input", () => {
+              state.currentPct = clamp(els.currentPct.value, 0, 100, 0);
+              if (els.currentSlider) els.currentSlider.value = state.currentPct;
+              updatePresetHighlights();
+              calculate();
+            });
+            els.currentPct.addEventListener("blur", () => setCurrentPct(state.currentPct));
+          }
+          els.currPresetBtns.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const val = parseFloat(btn.getAttribute("data-calc-curr-val"));
+              if (Number.isFinite(val)) setCurrentPct(val);
+            });
+          });
+
+          // Target battery (Slider + Number + Presets)
+          if (els.targetSlider) {
+            els.targetSlider.addEventListener("input", () => setTargetPct(els.targetSlider.value));
+          }
+          if (els.targetPct) {
+            els.targetPct.addEventListener("input", () => {
+              state.targetPct = clamp(els.targetPct.value, 1, 100, 100);
+              if (els.targetSlider) els.targetSlider.value = state.targetPct;
+              updatePresetHighlights();
+              calculate();
+            });
+            els.targetPct.addEventListener("blur", () => setTargetPct(state.targetPct));
+          }
+          els.targPresetBtns.forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const val = parseFloat(btn.getAttribute("data-calc-targ-val"));
+              if (Number.isFinite(val)) setTargetPct(val);
+            });
+          });
+
+          if (els.full100Btn) {
+            els.full100Btn.addEventListener("click", () => setTargetPct(100));
+          }
+
+          if (els.fullDuration) {
+            els.fullDuration.addEventListener("input", () => {
+              state.fullDurationHours = clamp(els.fullDuration.value, 0.5, 24, AppConfig.fullChargeHours);
+              calculate();
+            });
+            els.fullDuration.addEventListener("blur", () => {
+              els.fullDuration.value = state.fullDurationHours.toFixed(1);
+            });
+          }
+
+          if (els.startDatetime) {
+            els.startDatetime.addEventListener("input", () => {
+              state.startDatetimeStr = els.startDatetime.value;
+              calculate();
+            });
+            els.startDatetime.addEventListener("change", () => {
+              state.startDatetimeStr = els.startDatetime.value;
+              calculate();
+            });
+          }
+
+          if (els.nowBtn) {
+            els.nowBtn.addEventListener("click", setStartToCurrentTime);
+          }
+
+          if (els.applyLiveSocBtn) {
+            els.applyLiveSocBtn.addEventListener("click", () => {
+              const roundedSoc = clamp(Math.round(state.latestEstimatedLiveSoc), 0, 100, state.currentPct);
+              state.currentPct = roundedSoc;
+              state.startDatetimeStr = toLocalDateTimeInputString(new Date());
+              syncInputsToUI();
+              calculate();
+            });
+          }
+
+          if (els.resetBtn) {
+            els.resetBtn.addEventListener("click", () => {
+              state.currentPct = 25;
+              state.targetPct = 100;
+              state.fullDurationHours = AppConfig.fullChargeHours;
+              state.startDatetimeStr = toLocalDateTimeInputString(new Date());
+              syncInputsToUI();
+              calculate();
+            });
+          }
+
+          onConfigChange((cfg) => {
+            state.fullDurationHours = cfg.fullChargeHours;
+            syncInputsToUI();
+            calculate();
+          });
+        }
+
+        function getStateSnapshot() {
+          return {
+            currentPct: state.currentPct,
+            targetPct: state.targetPct,
+            fullDurationHours: state.fullDurationHours,
+            startDatetimeStr: state.startDatetimeStr
+          };
+        }
+
+        function applySavedState(saved) {
+          if (!saved || typeof saved !== "object") return;
+          state.currentPct = clamp(saved.currentPct, 0, 100, 25);
+          state.targetPct = clamp(saved.targetPct, 1, 100, 100);
+          state.fullDurationHours = clamp(saved.fullDurationHours, 0.5, 24, AppConfig.fullChargeHours);
+          if (typeof saved.startDatetimeStr === "string" && saved.startDatetimeStr.trim().length > 0) {
+            const parsed = new Date(saved.startDatetimeStr);
+            state.startDatetimeStr = !isNaN(parsed.getTime())
+              ? saved.startDatetimeStr
+              : toLocalDateTimeInputString(new Date());
+          }
+        }
+
+        function resetDefaults() {
+          state.currentPct = 25;
+          state.targetPct = 100;
+          state.fullDurationHours = FACTORY_DEFAULTS.fullChargeHours;
+          state.startDatetimeStr = toLocalDateTimeInputString(new Date());
+          syncInputsToUI();
+          calculate();
+        }
+
+        function init(savedState) {
+          state.startDatetimeStr = toLocalDateTimeInputString(new Date());
+          if (savedState) {
+            applySavedState(savedState);
+          }
+          syncInputsToUI();
+          bindEvents();
+          calculate();
+          startLiveTicker();
+        }
+
+        return { init, getStateSnapshot, resetDefaults };
+      })();
+
+      /* ======================================================================
+         5. GLOBAL SAVE / RESTORE CONTROLLER & BOOTSTRAP
+         ====================================================================== */
+      const SaveController = (function () {
+        const saveBtn = document.getElementById("save-all-btn");
+        const saveLabel = document.getElementById("save-all-label");
+        const clearBtn = document.getElementById("clear-saved-btn");
+        const statusSub = document.getElementById("storage-status-sub");
+        const toastEl = document.getElementById("save-toast");
+        const toastIcon = document.getElementById("save-toast-icon");
+        const toastMsg = document.getElementById("save-toast-msg");
+        let toastTimer = null;
+        let btnResetTimer = null;
+
+        function showToast(icon, message, isWarn) {
+          if (!toastEl || !toastIcon || !toastMsg) return;
+          toastIcon.textContent = icon;
+          toastMsg.textContent = message;
+          toastEl.classList.toggle("warn", Boolean(isWarn));
+          toastEl.classList.add("show");
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = window.setTimeout(() => {
+            toastEl.classList.remove("show");
+          }, 2800);
+        }
+
+        function saveAllInputs() {
+          const payload = {
+            savedAt: new Date().toISOString(),
+            activeTab: NavigationController.getActiveTab(),
+            theme: document.documentElement.getAttribute("data-theme") || null,
+            config: {
+              batteryKwh: AppConfig.batteryKwh,
+              consumptionPctPerKm: AppConfig.consumptionPctPerKm,
+              fullChargeHours: AppConfig.fullChargeHours
+            },
+            ridePage: RideSimulatorModule.getStateSnapshot(),
+            chargePage: ChargingCalculatorModule.getStateSnapshot()
+          };
+
+          const persisted = StorageManager.write(payload);
+          const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+          if (saveLabel) {
+            saveLabel.textContent = "Saved ✓";
+            if (btnResetTimer) clearTimeout(btnResetTimer);
+            btnResetTimer = window.setTimeout(() => {
+              saveLabel.textContent = "Save All Inputs";
+            }, 2200);
+          }
+
+          if (statusSub) {
+            statusSub.textContent = persisted
+              ? `Last saved on this device at ${timeStr}`
+              : `Saved for current session at ${timeStr}`;
+          }
+
+          if (persisted) {
+            showToast("✅", `All inputs saved (${timeStr})`, false);
+          } else {
+            showToast("⚠️", "Saved for current session (browser storage restricted)", true);
+          }
+        }
+
+        function clearAndResetAll() {
+          StorageManager.clear();
+          try {
+            localStorage.removeItem("qs3_theme");
+          } catch (e) {}
+          NavigationController.resetAll();
+          RideSimulatorModule.resetDefaults();
+          ChargingCalculatorModule.resetDefaults();
+          if (statusSub) {
+            statusSub.textContent = "Factory defaults restored. Tap Save All Inputs to store.";
+          }
+          showToast("↺", "Saved data cleared & factory defaults restored", false);
+        }
+
+        function init(savedData) {
+          if (savedData && savedData.savedAt && statusSub) {
+            const d = new Date(savedData.savedAt);
+            if (!isNaN(d.getTime())) {
+              const t = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+              const dt = d.toLocaleDateString([], { month: "short", day: "numeric" });
+              statusSub.textContent = `Restored saved inputs from ${dt}, ${t}`;
+            }
+          }
+          if (saveBtn) {
+            saveBtn.addEventListener("click", saveAllInputs);
+          }
+          if (clearBtn) {
+            clearBtn.addEventListener("click", clearAndResetAll);
+          }
+        }
+
+        return { init, saveAllInputs, clearAndResetAll };
+      })();
+
+      function bootApp() {
+        const savedData = StorageManager.read();
+
+        try {
+          NavigationController.init(savedData);
+        } catch (err) {
+          console.error("NavigationController init error:", err);
+        }
+        try {
+          RideSimulatorModule.init(savedData ? savedData.ridePage : null);
+        } catch (err) {
+          console.error("RideSimulatorModule init error:", err);
+        }
+        try {
+          ChargingCalculatorModule.init(savedData ? savedData.chargePage : null);
+        } catch (err) {
+          console.error("ChargingCalculatorModule init error:", err);
+        }
+        try {
+          SaveController.init(savedData);
+        } catch (err) {
+          console.error("SaveController init error:", err);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bootApp);
+      } else {
+        bootApp();
+      }
+    })();
+  </script>
+
+<script>
+(function(){
+  function clean(id, fallback){var e=document.getElementById(id); if(!e) return fallback; return String((e.value !== undefined && e.value !== '') ? e.value : (e.textContent||'')).trim();}
+  function num(s){var m=String(s||'').replace(/,/g,'').match(/-?\d+(?:\.\d+)?/);return m?parseFloat(m[0]):null;}
+  function publish(){
+    try {
+      if (!window.AndroidDashboard || !window.AndroidDashboard.updateDashboard) return;
+      var soc=num(clean('ride-start-pct',''));
+      var kwh=num(clean('ride-start-kwh-tag',''));
+      var range=num(clean('ride-max-possible-tag',''));
+      var payload={soc:soc, kwh:kwh, range:range, status:'Ride start battery • estimated range', updatedAt:Date.now()};
+      window.AndroidDashboard.updateDashboard(JSON.stringify(payload));
+    } catch(e) {}
+  }
+  document.addEventListener('DOMContentLoaded',function(){publish();setInterval(publish,5000);});
+  window.addEventListener('load',publish);
+})();
+</script>
+
+</body>
+</html>
