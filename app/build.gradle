@@ -1,0 +1,13 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.quantum.s3simulator'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.quantum.s3simulator'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+}
